@@ -1,0 +1,134 @@
+locale: ja_JP
+timezone: Asia/Tokyo
+currency:
+  display-name: MONA
+
+database:
+  type: sqlite # sqlite / mysql / mariadb
+  sqlite-file: monakabu.db
+  host: localhost
+  port: 3306
+  name: monakabu
+  username: root
+  password: change-me
+  pool-size: 10
+  connection-timeout-ms: 10000
+
+season:
+  enabled: true
+  duration-days: 14
+  end-day: SUNDAY
+  anchor-date: '2026-08-23'
+  settlement-time: '21:00'
+  auto-start-next-season: true
+  check-interval-seconds: 20
+  settlement-batch-size: 200
+  notifications: [24h, 12h, 6h, 1h, 30m, 10m, 5m, 1m]
+  presentation:
+    broadcast: true
+    title: true
+    title-text: '<gold><bold>Season <season> 終了</bold>'
+    subtitle-text: '<yellow>全保有株を最終価格で決済しました'
+    actionbar: true
+    actionbar-text: '<green>次のシーズンを準備しています…'
+    sound: true
+    sound-name: minecraft:block.note_block.pling
+    sound-volume: 1.0
+    sound-pitch: 1.0
+
+market:
+  price-update-interval: 5m
+  max-change-per-update: 0.20
+  trend-change-interval: 6h
+  trend-bull-weight: 20
+  trend-normal-weight: 60
+  trend-bear-weight: 20
+  bull-bias: 0.03
+  bear-bias: -0.03
+  mean-reversion: 0.015
+  history-retention-detailed-days: 30
+
+events:
+  enabled: true
+  check-interval: 30m
+  chance-per-check: 0.15
+
+fees:
+  buy:
+    percent: 1.0
+  sell:
+    percent: 2.0
+
+capital-gains-tax:
+  enabled: true
+  percent: 10.0
+
+limits:
+  max-shares-per-stock: 1000
+  max-total-investment: 10000000
+  # LuckPerms/Bukkit権限 monakabu.limit.shares.<数値> と monakabu.limit.investment.<数値> で上書きできます。
+
+circuit-breaker:
+  enabled: true
+  change-percent: 30
+  cooldown: 10m
+
+bankruptcy:
+  enabled: false
+  threshold: 25
+  chance-per-update: 0.005
+
+season-rewards:
+  enabled: false
+  places:
+    '1':
+      money: 10000
+      commands: []
+    '2': {money: 5000, commands: []}
+    '3': {money: 2500, commands: []}
+
+webhook:
+  enabled: false
+  url: ''
+  username: MonaKabu
+  timeout-seconds: 5
+  chart-enabled: true
+  chart-interval: 5m
+  chart-period: 24h
+  chart-points: 32
+  chart-only-when-open: true
+
+# Render等の中継APIへ、公開可能な市場データだけを署名して送信します。
+# 秘密鍵はconfig.ymlへ直接書かず、原則として環境変数へ設定してください。
+realtime:
+  enabled: false
+  endpoint: 'https://your-monakabu-api.onrender.com/v1/ingest'
+  server-id: monaka-main
+  secret-environment-variable: MONAKABU_REALTIME_SECRET
+  secret: ''
+  allow-insecure-http: false
+  dispatch-interval: 1s
+  snapshot-interval: 60s
+  request-timeout: 8s
+  batch-size: 25
+  outbox-retention-days: 7
+  retry:
+    initial-backoff: 5s
+    maximum-backoff: 5m
+    # 0は無制限再送。公開サーバーでは0を推奨します。
+    max-attempts: 0
+
+hologram:
+  max-count: 20
+  chart-period: 24h
+  chart-points: 32
+  line-width: 240
+  view-range: 64
+
+settlement:
+  include-sell-fee: false
+  include-capital-gains-tax: false
+
+performance:
+  db-threads: 4
+  ranking-cache-seconds: 60

@@ -1,0 +1,29 @@
+events:
+  mining_boom:
+    stock: mona_mining
+    name: 巨大鉱脈発見
+    modifier: 1.20
+    duration: 30m
+    weight: 10
+    message: '<gold>【速報】モナカ鉱業が巨大鉱脈を発見！ 株価が上昇しやすくなっています。'
+  poor_catch:
+    stock: mona_fishing
+    name: 漁獲量激減
+    modifier: 0.82
+    duration: 30m
+    weight: 8
+    message: '<red>【速報】モナカ水産で漁獲量が激減！ 株価に悪影響が出ています。'
+  technology_breakthrough:
+    stock: mona_technology
+    name: 技術革新
+    modifier: 1.25
+    duration: 20m
+    weight: 5
+    message: '<light_purple>【速報】モナカテクノロジーが新技術を発表しました！'
+  construction_delay:
+    stock: mona_construction
+    name: 大規模工事遅延
+    modifier: 0.88
+    duration: 45m
+    weight: 7
+    message: '<red>【市場速報】もなか建設の大規模工事に遅延が発生しました。'

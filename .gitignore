@@ -1,0 +1,10 @@
+.gradle/
+build/
+run/
+.idea/
+*.iml
+**/node_modules/
+**/dist/
+**/.env
+**/.env.local
+*.tsbuildinfo

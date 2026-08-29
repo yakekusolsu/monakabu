@@ -1,0 +1,29 @@
+name: MonaKabu
+version: '${version}'
+main: jp.monakaserver.monakabu.MonaKabuPlugin
+api-version: '1.21.11'
+authors: [MONAKA SERVER]
+description: 2週間シーズン制の本格株式市場プラグイン
+depend: [Vault]
+softdepend: [PlaceholderAPI, LuckPerms]
+commands:
+  monakabu:
+    description: MonaKabuを開きます
+    aliases: [kabu, stock]
+    usage: /monakabu [help]
+permissions:
+  monakabu.use: {default: true}
+  monakabu.trade: {default: true}
+  monakabu.buy: {default: true}
+  monakabu.sell: {default: true}
+  monakabu.portfolio: {default: true}
+  monakabu.ranking: {default: true}
+  monakabu.history: {default: true}
+  monakabu.admin: {default: op, children: {monakabu.admin.reload: true, monakabu.admin.price: true, monakabu.admin.event: true, monakabu.admin.halt: true, monakabu.admin.season: true, monakabu.admin.portfolio: true, monakabu.admin.hologram: true}}
+  monakabu.admin.reload: {default: op}
+  monakabu.admin.price: {default: op}
+  monakabu.admin.event: {default: op}
+  monakabu.admin.halt: {default: op}
+  monakabu.admin.season: {default: op}
+  monakabu.admin.portfolio: {default: op}
+  monakabu.admin.hologram: {default: op}

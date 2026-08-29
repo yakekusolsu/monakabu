@@ -1,0 +1,23 @@
+titles:
+  main: '<gradient:#f6c453:#ff8a3d><bold>MonaKabu</bold></gradient>'
+  stocks: '<gold>株式市場'
+  trade: '<gold>取引: <stock>'
+  portfolio: '<gold>保有株'
+  ranking: '<gold>シーズンランキング'
+  news: '<gold>市場ニュース'
+  history: '<gold>取引履歴'
+  admin: '<red>MonaKabu 管理'
+main:
+  size: 45
+  filler: {material: BLACK_STAINED_GLASS_PANE, name: ' ', custom-model-data: 0}
+  stocks: {slot: 11, material: EMERALD, name: '<green>📈 株を買う', lore: ['<gray>銘柄一覧と価格を確認します'], custom-model-data: 0}
+  portfolio: {slot: 13, material: CHEST, name: '<gold>💼 保有株', lore: ['<gray>評価額と損益を確認します'], custom-model-data: 0}
+  ranking: {slot: 15, material: GOLD_INGOT, name: '<yellow>📊 ランキング', lore: ['<gray>今シーズンの順位を確認します'], custom-model-data: 0}
+  news: {slot: 29, material: PAPER, name: '<aqua>📰 市場ニュース', lore: ['<gray>発生中のイベントを確認します'], custom-model-data: 0}
+  history: {slot: 31, material: BOOK, name: '<light_purple>📖 取引履歴', lore: ['<gray>最近の売買を確認します'], custom-model-data: 0}
+  close: {slot: 33, material: BARRIER, name: '<red>閉じる', lore: [], custom-model-data: 0}
+trade:
+  buy-slots: [10, 11, 12, 13, 14, 15]
+  buy-amounts: [1, 5, 10, 50, 100, -1]
+  sell-slots: [28, 29, 30, 31, 32, 33]
+  sell-amounts: [1, 5, 10, 50, 100, -1]

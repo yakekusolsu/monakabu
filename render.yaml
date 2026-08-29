@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: monakabu-realtime-api
+    runtime: docker
+    rootDir: realtime/backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: monakabu-realtime-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "false"
+      - key: MONAKABU_SHARED_SECRET
+        generateValue: true
+      - key: MONAKABU_SERVER_ID
+        value: monaka-main
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SIGNATURE_MAX_AGE_SECONDS
+        value: "300"
+
+databases:
+  - name: monakabu-realtime-db
+    databaseName: monakabu_realtime
+    user: monakabu

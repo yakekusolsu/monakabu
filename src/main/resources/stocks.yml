@@ -1,0 +1,55 @@
+stocks:
+  mona_mining:
+    display-name: '<gold>モナカ鉱業'
+    symbol: MMI
+    initial-price: 1000
+    min-price: 100
+    max-price: 10000
+    volatility: 0.05
+    drift: 0.001
+    icon: {material: DIAMOND_PICKAXE, custom-model-data: 0}
+  mona_fishing:
+    display-name: '<aqua>モナカ水産'
+    symbol: MFS
+    initial-price: 750
+    min-price: 50
+    max-price: 5000
+    volatility: 0.10
+    drift: 0.001
+    icon: {material: FISHING_ROD, custom-model-data: 0}
+  mona_construction:
+    display-name: '<yellow>もなか建設'
+    symbol: MCS
+    initial-price: 1200
+    min-price: 100
+    max-price: 12000
+    volatility: 0.07
+    drift: 0.0015
+    icon: {material: BRICKS, custom-model-data: 0}
+  mona_railway:
+    display-name: '<green>モナカ鉄道'
+    symbol: MRW
+    initial-price: 900
+    min-price: 100
+    max-price: 7000
+    volatility: 0.06
+    drift: 0.001
+    icon: {material: MINECART, custom-model-data: 0}
+  mona_trading:
+    display-name: '<gold>モナカ商事'
+    symbol: MTR
+    initial-price: 1500
+    min-price: 100
+    max-price: 15000
+    volatility: 0.09
+    drift: 0.002
+    icon: {material: EMERALD, custom-model-data: 0}
+  mona_technology:
+    display-name: '<light_purple>モナカテクノロジー'
+    symbol: MTC
+    initial-price: 2000
+    min-price: 50
+    max-price: 25000
+    volatility: 0.16
+    drift: 0.0025
+    icon: {material: REDSTONE, custom-model-data: 0}
