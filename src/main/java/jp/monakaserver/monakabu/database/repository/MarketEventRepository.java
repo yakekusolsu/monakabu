@@ -15,7 +15,7 @@ public final class MarketEventRepository {
     public void start(Connection connection, ActiveMarketEvent event, long seasonId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO market_events(instance_id,event_id,stock_id,modifier,started_at,ends_at,season_id) VALUES(?,?,?,?,?,?,?)")) {
             statement.setString(1, event.instanceId()); statement.setString(2, event.definition().id());
-            statement.setString(3, event.definition().stockId()); statement.setDouble(4, event.definition().modifier());
+            statement.setString(3, event.definition().primaryStockId()); statement.setDouble(4, event.definition().modifier());
             statement.setLong(5, event.startedAt().toEpochMilli()); statement.setLong(6, event.endsAt().toEpochMilli());
             statement.setLong(7, seasonId); statement.executeUpdate();
         }

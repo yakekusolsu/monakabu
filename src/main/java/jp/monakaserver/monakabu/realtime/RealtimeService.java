@@ -225,7 +225,8 @@ public final class RealtimeService implements Listener, AutoCloseable {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("instanceId", event.instanceId());
         data.put("eventId", event.definition().id());
-        data.put("stockId", event.definition().stockId());
+        data.put("stockId", event.definition().primaryStockId());
+        data.put("stockIds", event.definition().stockIds());
         data.put("name", event.definition().name());
         data.put("message", event.definition().message());
         data.put("modifier", event.definition().modifier());

@@ -118,17 +118,22 @@ stocks:
 `events.yml`:
 
 ```yaml
-events:
-  mining_boom:
-    stock: mona_mining
-    name: 巨大鉱脈発見
-    modifier: 1.20
-    duration: 30m
-    weight: 10
-    message: '<gold>【速報】巨大鉱脈が発見されました！'
+market-events:
+  resource_price_surge:
+    name: 資源価格高騰
+    stocks:
+      - mona_mining
+      - hinode_energy
+      - frontier_resources
+    modifier: 1.32
+    duration: 45m
+    weight: 5
+    message: '<gold>【市場速報】資源関連株が急伸しています。'
 ```
 
-`events.chance-per-check` と重みでランダム発生します。発生中イベントと終了日時はDBへ保存され、再起動後に復元します。管理者は `/monakabu event <stock> <event>` で発生させられます。
+`stocks:`に列挙した全銘柄へ同じ効果が同時適用されます。単一銘柄の従来形式`stock: mona_mining`とルート名`events:`にも互換対応しています。同じ銘柄を含むイベントは同時発生しません。
+
+`events.chance-per-check` と重みでランダム発生します。発生中イベントと終了日時はDBへ保存され、再起動後に復元します。管理者は `/monakabu event <対象銘柄のいずれか> <event>` で発生させられます。
 
 ## 手数料、税、上限
 

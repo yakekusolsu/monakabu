@@ -11,6 +11,7 @@ export interface SeasonState {
 
 export interface MarketNews {
   instanceId: string; eventId: string; stockId: string; name: string; message: string;
+  stockIds?: string[];
   modifier: number; startedAt: string; endsAt: string;
 }
 

@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,15 +39,27 @@ public final class MarketEventService {
     }
 
     public void reloadDefinitions() {
-        ConfigurationSection root = configs.events().getConfigurationSection("events");
         Map<String, MarketEventDefinition> loaded = new ConcurrentHashMap<>();
-        if (root != null) for (String id : root.getKeys(false)) {
-            ConfigurationSection section = root.getConfigurationSection(id); if (section == null) continue;
-            loaded.put(id, new MarketEventDefinition(id, section.getString("stock", ""), section.getString("name", id),
-                    section.getDouble("modifier", 1), DurationParser.parse(section.getString("duration", "30m")),
-                    Math.max(1, section.getInt("weight", 1)), section.getString("message", id)));
-        }
+        loadDefinitions(configs.events().getConfigurationSection("events"), loaded);
+        loadDefinitions(configs.events().getConfigurationSection("market-events"), loaded);
         definitions.clear(); definitions.putAll(loaded);
+    }
+
+    private void loadDefinitions(ConfigurationSection root, Map<String, MarketEventDefinition> loaded) {
+        if (root == null) return;
+        for (String id : root.getKeys(false)) {
+            ConfigurationSection section = root.getConfigurationSection(id); if (section == null) continue;
+            List<String> stockIds = section.getStringList("stocks");
+            String singleStock = section.getString("stock", "");
+            if (stockIds.isEmpty()) stockIds = singleStock == null ? List.of() : List.of(singleStock);
+            try {
+                loaded.put(id, new MarketEventDefinition(id, stockIds, section.getString("name", id),
+                        section.getDouble("modifier", 1), DurationParser.parse(section.getString("duration", "30m")),
+                        Math.max(1, section.getInt("weight", 1)), section.getString("message", id)));
+            } catch (RuntimeException error) {
+                plugin.getLogger().log(Level.WARNING, "Invalid market event skipped: " + id, error);
+            }
+        }
     }
 
     public void restore() {
@@ -64,7 +77,8 @@ public final class MarketEventService {
 
     private Optional<MarketEventDefinition> weightedRandom() {
         ArrayList<MarketEventDefinition> candidates = new ArrayList<>(definitions.values());
-        candidates.removeIf(def -> active.values().stream().anyMatch(a -> a.definition().stockId().equals(def.stockId())));
+        candidates.removeIf(def -> active.values().stream().anyMatch(a ->
+                !Collections.disjoint(a.definition().stockIds(), def.stockIds())));
         int total = candidates.stream().mapToInt(MarketEventDefinition::weight).sum(); if (total <= 0) return Optional.empty();
         int roll = ThreadLocalRandom.current().nextInt(total);
         for (MarketEventDefinition candidate : candidates) { roll -= candidate.weight(); if (roll < 0) return Optional.of(candidate); }
@@ -85,7 +99,7 @@ public final class MarketEventService {
 
     public boolean startForStock(String stockId, String eventId) {
         MarketEventDefinition definition = definitions.get(eventId);
-        return definition != null && definition.stockId().equals(stockId) && start(eventId);
+        return definition != null && definition.affectsStock(stockId) && start(eventId);
     }
 
     public void expire(Instant now) {
@@ -100,7 +114,7 @@ public final class MarketEventService {
 
     public double factorFor(String stockId, Duration updateInterval, Instant now) {
         double factor = 1;
-        for (ActiveMarketEvent event : active.values()) if (event.activeAt(now) && event.definition().stockId().equals(stockId)) {
+        for (ActiveMarketEvent event : active.values()) if (event.activeAt(now) && event.definition().affectsStock(stockId)) {
             double fraction = Math.min(1, (double) updateInterval.toMillis() / event.definition().duration().toMillis());
             factor *= Math.exp(Math.log(event.definition().modifier()) * fraction);
         }

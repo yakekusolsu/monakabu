@@ -186,8 +186,11 @@ function MarketClock({ season, open }: { season: SeasonState | null; open: boole
 }
 
 function News({ events, stocks }: { events: MarketNews[]; stocks: StockState[] }) {
-  const latest = events.at(-1)!; const symbol = stocks.find((stock) => stock.id === latest.stockId)?.symbol ?? latest.stockId;
-  return <section className="news"><span>【市場速報】</span><strong>{latest.name}</strong><p>{plain(latest.message)}</p><small>{symbol} / {latest.modifier >= 1 ? "好材料ｷﾀ━━(ﾟ∀ﾟ)━━!!" : "悪材料…"}</small></section>;
+  const latest = events.at(-1)!;
+  const targetIds = latest.stockIds?.length ? latest.stockIds : [latest.stockId];
+  const symbols = targetIds.map((id) => stocks.find((stock) => stock.id === id)?.symbol ?? id);
+  const targets = symbols.length > 5 ? `${symbols.slice(0, 5).join(" / ")} / 他${symbols.length - 5}銘柄` : symbols.join(" / ");
+  return <section className="news"><span>【市場速報】</span><strong>{latest.name}</strong><p>{plain(latest.message)}</p><small>{targets} / {latest.modifier >= 1 ? "好材料ｷﾀ━━(ﾟ∀ﾟ)━━!!" : "悪材料…"}</small></section>;
 }
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) { return <div className="metric"><span>{label}</span><strong className={accent}>{value}</strong></div>; }

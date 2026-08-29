@@ -29,6 +29,7 @@ export interface MarketNews {
   instanceId: string;
   eventId: string;
   stockId: string;
+  stockIds?: string[];
   name: string;
   message: string;
   modifier: number;

@@ -33,7 +33,7 @@ import org.bukkit.scheduler.BukkitTask;
 public final class WebhookService implements Listener,AutoCloseable {
     private final JavaPlugin plugin;private final ConfigManager configs;private final HttpClient client;private final StockRegistry stocks;private final MarketService market;private final SeasonService seasons;private final AtomicBoolean chartRunning=new AtomicBoolean();private BukkitTask chartTask;
     public WebhookService(JavaPlugin plugin,ConfigManager configs,StockRegistry stocks,MarketService market,SeasonService seasons){this.plugin=plugin;this.configs=configs;this.stocks=stocks;this.market=market;this.seasons=seasons;this.client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();reload();}
-    @EventHandler public void event(MarketEventStartEvent event){send("📈 **MonaKabu 市場速報**\n"+event.getMarketEvent().definition().name()+"\n銘柄: "+event.getMarketEvent().definition().stockId());}
+    @EventHandler public void event(MarketEventStartEvent event){send("📈 **MonaKabu 市場速報**\n"+event.getMarketEvent().definition().name()+"\n対象: "+String.join(", ",event.getMarketEvent().definition().stockIds()));}
     @EventHandler public void season(SeasonEndEvent event){send("📊 **MonaKabu Season "+event.getSeason().number()+" 終了**\nすべての保有株を最終価格でMONA決済しました。");}
 
     public void reload(){if(chartTask!=null)chartTask.cancel();chartTask=null;if(!configs.config().getBoolean("webhook.enabled",false)||!configs.config().getBoolean("webhook.chart-enabled",true))return;Duration interval=DurationParser.parse(configs.config().getString("webhook.chart-interval","5m"));long ticks=Math.max(20,interval.toSeconds()*20);chartTask=Bukkit.getScheduler().runTaskTimerAsynchronously(plugin,this::sendMarketChart,ticks,ticks);}
