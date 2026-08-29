@@ -8,9 +8,10 @@ import java.time.Duration;
 import java.util.random.RandomGenerator;
 
 public final class PriceEngine {
-    public record Settings(double maxChange, double bullBias, double bearBias, double meanReversion) {
+    public record Settings(double maxChange, double volatilityMultiplier, double bullBias, double bearBias, double meanReversion) {
         public Settings {
-            if (maxChange <= 0 || maxChange > 1 || meanReversion < 0 || meanReversion > 1) {
+            if (maxChange <= 0 || maxChange > 1 || volatilityMultiplier <= 0 || volatilityMultiplier > 10
+                    || meanReversion < 0 || meanReversion > 1) {
                 throw new IllegalArgumentException("Invalid price settings");
             }
         }
@@ -33,7 +34,8 @@ public final class PriceEngine {
             case NORMAL -> 0;
         };
         double trendBias = trendBiasPerDay * fractionOfDay;
-        double shock = random.nextGaussian() * stock.definition().volatility() * Math.sqrt(fractionOfDay);
+        double shock = random.nextGaussian() * stock.definition().volatility()
+                * settings.volatilityMultiplier() * Math.sqrt(fractionOfDay);
         double drift = stock.definition().drift() * fractionOfDay;
         double reversion = settings.meanReversion() * Math.log(initial / Math.max(current, 0.01)) * fractionOfDay;
         double eventReturn = Math.log(Math.max(0.01, eventFactor));

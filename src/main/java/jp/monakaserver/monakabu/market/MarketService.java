@@ -41,6 +41,7 @@ public final class MarketService {
     public void reloadSettings() {
         updateInterval=DurationParser.parse(configs.config().getString("market.price-update-interval","5m"));
         engine=new PriceEngine(new PriceEngine.Settings(configs.config().getDouble("market.max-change-per-update",.2),
+                configs.config().getDouble("market.volatility-multiplier",1.5),
                 configs.config().getDouble("market.bull-bias",.03),configs.config().getDouble("market.bear-bias",-.03),
                 configs.config().getDouble("market.mean-reversion",.015)));
     }

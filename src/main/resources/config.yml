@@ -38,6 +38,8 @@ season:
 
 market:
   price-update-interval: 5m
+  # 全銘柄の通常変動をまとめて調整します。1.0が基準、1.5で約1.5倍です。
+  volatility-multiplier: 1.5
   max-change-per-update: 0.20
   trend-change-interval: 6h
   trend-bull-weight: 20
