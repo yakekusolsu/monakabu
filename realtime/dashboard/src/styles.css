@@ -1,47 +1,48 @@
 :root {
-  font-family: Arial, "MS PGothic", "ＭＳ Ｐゴシック", Meiryo, sans-serif;
-  color: #111;
-  background: #efefef;
+  font-family: "Yu Gothic UI", Meiryo, Arial, sans-serif;
+  color: #202020;
+  background: #f2f2f2;
   font-synthesis: none;
 }
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: #efefef; font-size: 14px; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #f2f2f2; font-size: 15px; line-height: 1.55; }
 button { font: inherit; }
 a { color: #0000ee; text-decoration: underline; }
 a:visited { color: #551a8b; }
+button:focus-visible, a:focus-visible { outline: 3px solid #e6a800; outline-offset: 2px; }
 
-.app-shell { width: min(1120px, calc(100% - 24px)); margin: 8px auto 24px; }
-.topbar { display: grid; grid-template-columns: 1fr auto auto; gap: 22px; align-items: center; padding: 10px 12px; border: 1px solid #aaa; background: #fff; }
+.app-shell { width: min(1180px, calc(100% - 28px)); margin: 12px auto 28px; }
+.topbar { display: grid; grid-template-columns: 1fr auto auto; gap: 24px; align-items: center; padding: 13px 16px; border: 1px solid #999; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark { display: grid; place-items: center; width: 40px; height: 40px; color: #fff; background: #800000; border: 2px outset #b66; font-size: 22px; font-weight: bold; }
-.brand strong { display: block; color: #800000; font-size: 22px; line-height: 1.1; }
-.brand small { display: block; margin-top: 3px; color: #555; font-size: 11px; }
+.brand strong { display: block; color: #800000; font-size: 23px; line-height: 1.2; }
+.brand small { display: block; margin-top: 3px; color: #555; font-size: 12px; }
 .board-nav { display: flex; gap: 5px; white-space: nowrap; }
 .board-nav a::before { content: "["; color: #333; }
 .board-nav a::after { content: "]"; color: #333; }
-.connection { display: flex; align-items: center; gap: 6px; padding: 5px 8px; white-space: nowrap; color: #333; border: 1px solid #999; background: #ddd; font-size: 12px; }
+.connection { display: flex; align-items: center; gap: 7px; padding: 6px 10px; white-space: nowrap; color: #222; border: 1px solid #888; background: #eee; font-size: 12px; }
 .pulse { width: 9px; height: 9px; border: 1px solid #444; border-radius: 50%; }
 .pulse.live { background: #00aa00; }
 .pulse.connecting { background: #ffcc00; }
 .pulse.offline { background: #cc0000; }
 
 main { padding: 12px 0 20px; }
-.market-hero { display: grid; grid-template-columns: 1fr 300px; gap: 10px; align-items: stretch; margin-bottom: 12px; }
-.board-intro { padding: 14px 18px; border: 1px solid #008000; background: #ccffcc; }
+.market-hero { display: grid; grid-template-columns: 1fr 320px; gap: 12px; align-items: stretch; margin-bottom: 14px; }
+.board-intro { padding: 18px 22px; border: 1px solid #3a8d3a; background: #d9f7d9; }
 .eyebrow { margin: 0 0 7px; color: #008000; font-weight: bold; }
 h1 { margin: 0; color: #800000; font-size: clamp(23px, 4vw, 34px); line-height: 1.25; }
-.lead { margin: 10px 0 0; color: #333; line-height: 1.65; }
+.lead { margin: 12px 0 0; color: #333; line-height: 1.75; }
 
-.market-clock { padding: 12px 15px; border: 1px solid #800000; background: #f0e0d6; }
+.market-clock { padding: 16px 18px; border: 1px solid #9b4444; background: #f7e9df; }
 .market-clock > div { display: flex; align-items: center; gap: 7px; padding-bottom: 6px; border-bottom: 1px dotted #987; }
 .market-clock > div strong { color: #800000; font-size: 14px; }
 .market-dot { width: 8px; height: 8px; border-radius: 50%; }
 .market-dot.open { background: #00aa00; }
 .market-dot.closed { background: #cc0000; }
-.market-clock p { margin: 10px 0 5px; color: #555; font-size: 12px; }
-.market-clock time { color: #111; font-family: "Courier New", monospace; font-size: 25px; font-weight: bold; }
+.market-clock p { margin: 12px 0 5px; color: #555; font-size: 13px; }
+.market-clock time { color: #111; font-family: "Courier New", monospace; font-size: 27px; font-weight: bold; }
 .market-clock time small { color: #555; font-family: inherit; font-size: 11px; }
 
 .news { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; margin-bottom: 10px; padding: 9px 12px; color: #111; border: 1px solid #d5a000; background: #ffffcc; }
@@ -50,57 +51,58 @@ h1 { margin: 0; color: #800000; font-size: clamp(23px, 4vw, 34px); line-height: 
 .news p { margin: 0; }
 .news small { color: #555; }
 
-.thread-title { padding: 5px 9px; color: #fff; border: 1px solid #006600; background: #008000; font-weight: bold; }
-.stock-grid { padding: 8px 10px 4px; border: 1px solid #aaa; border-top: 0; background: #f5f5f5; }
-.stock-card { display: block; width: 100%; margin: 0 0 5px; padding: 8px 10px 11px; color: #111; text-align: left; border: 0; background: transparent; cursor: pointer; }
-.stock-card:nth-child(even) { background: #e8e8e8; }
-.stock-card:hover { background: #ffffcc; }
-.stock-card.selected { outline: 1px solid #d5a000; background: #ffffcc; }
-.post-meta { margin: 0 0 7px; color: #333; font-size: 13px; line-height: 1.5; }
+.thread-title { padding: 8px 12px; color: #fff; border: 1px solid #245f24; background: #347a34; font-size: 15px; font-weight: bold; letter-spacing: .02em; }
+.stock-grid { padding: 8px 12px; border: 1px solid #999; border-top: 0; background: #fff; }
+.stock-card { display: block; width: 100%; margin: 0; padding: 13px 15px 15px; color: #111; text-align: left; border: 0; border-bottom: 1px solid #d2d2d2; background: #fff; cursor: pointer; transition: background-color .15s, box-shadow .15s; }
+.stock-card:last-child { border-bottom: 0; }
+.stock-card:nth-child(even) { background: #f3f3f3; }
+.stock-card:hover { background: #fffbdc; }
+.stock-card.selected { position: relative; outline: 0; background: #fff8c7; box-shadow: inset 5px 0 #d99a00; }
+.post-meta { margin: 0 0 9px; color: #3d3d3d; font-size: 13px; line-height: 1.65; }
 .post-meta > span { color: #0000ee; text-decoration: underline; }
 .post-meta b { color: #008000; }
-.post-body { margin-left: 28px; }
+.post-body { margin-left: 32px; }
 .stock-title { display: flex; justify-content: space-between; align-items: center; }
-.ticker { color: #555; font-family: "Courier New", monospace; font-size: 12px; }
+.ticker { color: #4c4c4c; font-family: "Courier New", monospace; font-size: 13px; }
 .halted { padding: 2px 5px; color: #fff; background: #cc0000; font-size: 11px; font-weight: bold; }
-.card-price { display: inline-flex; align-items: baseline; gap: 5px; margin-top: 7px; }
-.card-price strong { color: #111; font-family: "Courier New", monospace; font-size: 25px; }
-.card-price span { color: #555; font-size: 11px; }
-.change { display: inline-block; margin-left: 12px; font-family: "Courier New", monospace; font-size: 13px; font-weight: bold; }
+.card-price { display: inline-flex; align-items: baseline; gap: 6px; margin-top: 9px; }
+.card-price strong { color: #111; font-family: "Courier New", monospace; font-size: 29px; line-height: 1.2; }
+.card-price span { color: #444; font-size: 12px; font-weight: bold; }
+.change { display: inline-block; margin-left: 14px; font-family: "Courier New", monospace; font-size: 14px; font-weight: bold; }
 .positive { color: #cc0000; }
 .negative { color: #0000cc; }
-.stock-comment { color: #444; font-size: 12px; }
+.stock-comment { color: #444; font-size: 13px; }
 .empty { display: grid; min-height: 160px; place-items: center; color: #666; }
 
-.chart-panel { margin-top: 14px; border: 1px solid #aaa; background: #f5f5f5; }
+.chart-panel { margin-top: 16px; border: 1px solid #999; background: #fff; }
 .chart-panel > .thread-title { margin: -1px -1px 0; }
-.chart-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 13px 18px 6px; }
-.chart-heading h2 { margin: 0 0 0 28px; color: #111; font-size: 17px; font-weight: normal; }
+.chart-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 17px 22px 8px; }
+.chart-heading h2 { margin: 0 0 0 32px; color: #111; font-size: 18px; font-weight: normal; }
 .quote { min-width: 180px; text-align: right; }
-.quote strong { font-family: "Courier New", monospace; font-size: 28px; }
+.quote strong { font-family: "Courier New", monospace; font-size: 31px; }
 .quote > span { margin-left: 5px; color: #555; font-size: 11px; }
 .quote .change { display: block; margin-top: 3px; }
-.periods { display: flex; justify-content: flex-end; align-items: center; gap: 2px; padding: 0 16px 7px; color: #555; font-size: 12px; }
-.periods button { padding: 1px 3px; color: #0000ee; border: 0; background: transparent; text-decoration: underline; cursor: pointer; }
+.periods { display: flex; justify-content: flex-end; align-items: center; gap: 5px; padding: 0 20px 10px; color: #444; font-size: 13px; }
+.periods button { padding: 3px 6px; color: #0000ee; border: 0; background: transparent; text-decoration: underline; cursor: pointer; }
 .periods button:hover { color: #cc0000; }
 .periods button.active { color: #fff; background: #008000; text-decoration: none; }
 
-.chart-wrap { height: 325px; margin: 0 16px; padding: 8px 10px 0; border: 1px inset #aaa; background: #fff; }
+.chart-wrap { height: 340px; margin: 0 20px; padding: 10px 12px 0; border: 1px solid #aaa; background: #fff; }
 .chart-wrap svg { width: 100%; height: 280px; overflow: visible; }
 .grid-line { stroke: #ccc; stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .chart-up, .chart-down { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .chart-up { stroke: #cc0000; }
 .chart-down { stroke: #0000cc; }
 .chart-range { display: flex; justify-content: space-between; color: #555; font-family: "Courier New", monospace; font-size: 10px; }
-.chart-empty { display: grid; height: 325px; margin: 0 16px; place-items: center; color: #555; border: 1px inset #aaa; background: #fff; }
-.metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin: 10px 16px 16px; border: 1px solid #aaa; background: #ddd; gap: 1px; }
-.metric { padding: 9px 11px; background: #f5f5f5; }
+.chart-empty { display: grid; height: 340px; margin: 0 20px; place-items: center; color: #555; border: 1px solid #aaa; background: #fff; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin: 12px 20px 20px; border: 1px solid #aaa; background: #ccc; gap: 1px; }
+.metric { padding: 12px 14px; background: #f7f7f7; }
 .metric span { display: block; margin-bottom: 4px; color: #666; font-size: 11px; }
 .metric strong { font-family: "Courier New", monospace; font-size: 13px; }
 .metric strong.bull { color: #cc0000; }
 .metric strong.bear { color: #0000cc; }
 
-footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; padding: 12px; color: #555; border-top: 1px solid #aaa; font-size: 11px; }
+footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; padding: 14px; color: #444; border-top: 1px solid #999; font-size: 12px; }
 .configuration-error { width: min(680px, calc(100% - 40px)); margin: 15vh auto; padding: 24px; color: #111; border: 1px solid #800000; background: #f0e0d6; }
 .configuration-error h1 { color: #800000; font-size: 26px; }
 
@@ -116,7 +118,7 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px;
 }
 
 @media (max-width: 560px) {
-  body { font-size: 13px; }
+  body { font-size: 14px; }
   .app-shell { width: calc(100% - 10px); margin-top: 5px; }
   .topbar { display: flex; flex-wrap: wrap; gap: 8px 12px; }
   .brand { width: 100%; }
@@ -124,7 +126,11 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px;
   .board-nav { order: 3; width: 100%; overflow-x: auto; }
   .connection { order: 2; margin-left: 0; }
   .board-intro, .post-meta { overflow-wrap: anywhere; }
-  .post-body { margin-left: 12px; }
+  .stock-grid { padding: 5px 7px; }
+  .stock-card { padding: 12px 10px 14px; }
+  .post-meta { font-size: 12px; }
+  .post-body { margin-left: 14px; }
+  .card-price strong { font-size: 26px; }
   .stock-comment { display: block; margin-top: 4px; }
   .chart-heading { padding-inline: 10px; }
   .chart-heading h2, .quote { margin-left: 12px; }
