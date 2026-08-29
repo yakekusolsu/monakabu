@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { HistoryPoint, MarketNews, MarketState, RealtimeEvent, SeasonState, StockState } from "./types";
+import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, RealtimeEvent, SeasonState, StockState } from "./types";
 
 const apiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 const wsUrl = ((import.meta.env.VITE_WS_URL as string | undefined) ?? apiUrl.replace(/^http/, "ws")).replace(/\/$/, "");
 const serverId = (import.meta.env.VITE_SERVER_ID as string | undefined) ?? "monaka-main";
-const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [] };
+const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null };
 const periods = ["1h", "6h", "24h", "7d"] as const;
 const periodLabels: Record<Period, string> = { "1h": "1時間", "6h": "6時間", "24h": "24時間", "7d": "7日" };
 type Period = typeof periods[number];
@@ -111,6 +111,8 @@ export default function App() {
 
         {market.activeEvents.length > 0 && <News events={market.activeEvents} stocks={market.stocks} />}
 
+        {market.dailyReport && <DailyReport report={market.dailyReport} currency={market.currency} />}
+
         <div className="thread-title" id="market">銘柄一覧＠現在の株価</div>
         <section className="stock-grid" aria-label="銘柄一覧">
           {market.stocks.map((stock, index) => <StockCard key={stock.id} index={index + 1} stock={stock} currency={market.currency} selected={stock.id === selectedId} onClick={() => setSelectedId(stock.id)} />)}
@@ -193,14 +195,37 @@ function News({ events, stocks }: { events: MarketNews[]; stocks: StockState[] }
   return <section className="news"><span>【市場速報】</span><strong>{latest.name}</strong><p>{plain(latest.message)}</p><small>{targets} / {latest.modifier >= 1 ? "好材料ｷﾀ━━(ﾟ∀ﾟ)━━!!" : "悪材料…"}</small></section>;
 }
 
+function DailyReport({ report, currency }: { report: DailyMarketReport; currency: string }) {
+  return <section className="daily-report" aria-labelledby="daily-report-title">
+    <div className="thread-title" id="daily-report-title">【21:00】本日の値幅まとめ＠{report.reportDate}</div>
+    <p className="daily-report-note">本日の高値と安値の差です。更新：{dateTime(report.generatedAt)}</p>
+    <div className="daily-report-scroll">
+      <table className="daily-report-table">
+        <thead><tr><th>銘柄</th><th>現在値</th><th>高値</th><th>安値</th><th>値幅</th></tr></thead>
+        <tbody>{report.stocks.map((stock) => <tr key={stock.stockId}>
+          <th><strong>{stock.symbol}</strong><small>{plain(stock.displayName)}</small></th>
+          <td>{money(stock.currentPrice)} <small>{currency}</small></td>
+          <td className="daily-high">{money(stock.dailyHigh)}</td>
+          <td className="daily-low">{money(stock.dailyLow)}</td>
+          <td><strong>{money(stock.range)}</strong> <span>({stock.rangePercent.toFixed(2)}%)</span></td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+  </section>;
+}
+
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) { return <div className="metric"><span>{label}</span><strong className={accent}>{value}</strong></div>; }
 function ConfigurationError() { return <div className="configuration-error"><h1>MonaKabu Live</h1><p>VITE_API_URL と VITE_WS_URL をVercelの環境変数に設定してください。</p></div>; }
 function applyEvent(current: MarketState, event: RealtimeEvent): MarketState {
-  if (event.type === "market.snapshot") return event.data as MarketState;
+  if (event.type === "market.snapshot") {
+    const snapshot = event.data as MarketState;
+    return { ...snapshot, dailyReport: snapshot.dailyReport ?? current.dailyReport ?? null };
+  }
   if (event.type === "stock.price.changed") { const stock = event.data as StockState; return { ...current, stocks: [...current.stocks.filter((item) => item.id !== stock.id), stock].sort((a, b) => a.id.localeCompare(b.id)) }; }
   if (event.type === "season.started" || event.type === "season.ended") { const season = event.data as SeasonState; return { ...current, season, marketOpen: season.status === "OPEN" }; }
   if (event.type === "market.event.started") { const news = event.data as MarketNews; return { ...current, activeEvents: [...current.activeEvents.filter((item) => item.instanceId !== news.instanceId), news] }; }
   if (event.type === "market.event.ended") { const news = event.data as MarketNews; return { ...current, activeEvents: current.activeEvents.filter((item) => item.instanceId !== news.instanceId) }; }
+  if (event.type === "market.daily.report") return { ...current, dailyReport: event.data as DailyMarketReport };
   return current;
 }
 function plain(value: string) { return value.replace(/<[^>]+>/g, ""); }

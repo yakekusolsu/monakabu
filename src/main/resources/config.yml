@@ -55,6 +55,14 @@ events:
   check-interval: 30m
   chance-per-check: 0.15
 
+daily-report:
+  enabled: true
+  time: '21:00'
+  check-interval-seconds: 30
+  game-broadcast: true
+  webhook: true
+  site: true
+
 fees:
   buy:
     percent: 1.0

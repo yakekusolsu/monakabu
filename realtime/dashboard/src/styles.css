@@ -51,6 +51,22 @@ h1 { margin: 0; color: #800000; font-size: clamp(23px, 4vw, 34px); line-height: 
 .news p { margin: 0; }
 .news small { color: #555; }
 
+.daily-report { margin-bottom: 14px; border: 1px solid #999; background: #fff; }
+.daily-report > .thread-title { margin: -1px -1px 0; background: #6b4f1d; border-color: #4e3914; }
+.daily-report-note { margin: 0; padding: 8px 12px; color: #555; border-bottom: 1px dotted #aaa; background: #ffffee; font-size: 12px; }
+.daily-report-scroll { overflow-x: auto; }
+.daily-report-table { width: 100%; min-width: 720px; border-collapse: collapse; font-family: "Courier New", "Yu Gothic UI", monospace; }
+.daily-report-table th, .daily-report-table td { padding: 8px 12px; text-align: right; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; white-space: nowrap; }
+.daily-report-table thead th { color: #fff; background: #777; font-size: 12px; }
+.daily-report-table thead th:first-child, .daily-report-table tbody th { text-align: left; }
+.daily-report-table tbody tr:nth-child(even) { background: #f3f3f3; }
+.daily-report-table tbody tr:hover { background: #fffbdc; }
+.daily-report-table tbody th strong { display: block; color: #008000; }
+.daily-report-table tbody th small { display: block; color: #555; font-family: "Yu Gothic UI", Meiryo, sans-serif; font-weight: normal; }
+.daily-report-table td small, .daily-report-table td span { color: #666; font-size: 11px; }
+.daily-report-table .daily-high { color: #cc0000; }
+.daily-report-table .daily-low { color: #0000cc; }
+
 .thread-title { padding: 8px 12px; color: #fff; border: 1px solid #245f24; background: #347a34; font-size: 15px; font-weight: bold; letter-spacing: .02em; }
 .stock-grid { padding: 8px 12px; border: 1px solid #999; border-top: 0; background: #fff; }
 .stock-card { display: block; width: 100%; margin: 0; padding: 13px 15px 15px; color: #111; text-align: left; border: 0; border-bottom: 1px solid #d2d2d2; background: #fff; cursor: pointer; transition: background-color .15s, box-shadow .15s; }

@@ -15,9 +15,18 @@ export interface MarketNews {
   modifier: number; startedAt: string; endsAt: string;
 }
 
+export interface DailyStockRange {
+  stockId: string; symbol: string; displayName: string;
+  currentPrice: number; dailyHigh: number; dailyLow: number; range: number; rangePercent: number;
+}
+
+export interface DailyMarketReport {
+  reportDate: string; generatedAt: string; stocks: DailyStockRange[];
+}
+
 export interface MarketState {
   currency: string; marketOpen: boolean; season: SeasonState | null;
-  stocks: StockState[]; activeEvents: MarketNews[];
+  stocks: StockState[]; activeEvents: MarketNews[]; dailyReport: DailyMarketReport | null;
 }
 
 export interface RealtimeEvent { type: string; data: unknown; timestamp: string; }

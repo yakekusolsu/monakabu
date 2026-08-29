@@ -240,7 +240,7 @@ database:
 
 DBとユーザーを事前作成し、UTF-8を利用してください。SQLiteはWAL、foreign keys、busy timeoutを有効化し、書込競合を避けるためプールを1接続に固定します。MySQL/MariaDBではHikariCPを使用します。
 
-主要テーブル: `players`, `stocks`, `stock_prices`, `portfolios`, `transactions`, `seasons`, `season_results`, `market_events`, `pending_payments`, `season_notifications`, `realtime_outbox`。検索用途の複合INDEXも自動作成します。
+主要テーブル: `players`, `stocks`, `stock_prices`, `portfolios`, `transactions`, `seasons`, `season_results`, `market_events`, `daily_reports`, `pending_payments`, `season_notifications`, `realtime_outbox`。検索用途の複合INDEXも自動作成します。
 
 ## ランキング報酬
 
@@ -262,6 +262,20 @@ webhook:
 ```
 
 市場イベントとシーズン終了に加え、Webhookを有効にすると標準で5分ごとに全企業の価格・変動率・チャートを送信します。Java HttpClientによる完全非同期処理で、失敗は警告ログだけに記録され、市場処理を停止しません。
+
+## 21時の日次相場レポート
+
+```yaml
+daily-report:
+  enabled: true
+  time: '21:00'
+  check-interval-seconds: 30
+  game-broadcast: true
+  webhook: true
+  site: true
+```
+
+設定タイムゾーンの毎日21時以降に、その日の各銘柄の現在値・高値・安値・値幅・値幅率をゲーム内、Discord Webhook、リアルタイムサイトへ一度だけ配信します。`daily_reports.report_date`の主キーで、再起動やスケジューラの重複実行による同日二重配信を防止します。
 
 ## Render / Vercel リアルタイムWeb市場
 

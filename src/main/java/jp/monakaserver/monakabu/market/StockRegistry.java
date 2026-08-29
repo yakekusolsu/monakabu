@@ -67,7 +67,7 @@ public final class StockRegistry {
     public void restore(String id, BigDecimal price, BigDecimal previous, BigDecimal high, BigDecimal low,
                         Trend trend, Instant haltedUntil, boolean bankrupt, Instant updatedAt) {
         MutableStock stock = stocks.get(id);
-        if (stock != null) stock.restore(price, previous, high, low, trend, haltedUntil, bankrupt, updatedAt);
+        if (stock != null) stock.restore(price, previous, high, low, trend, haltedUntil, bankrupt, updatedAt, zoneId);
     }
 
     public StockSnapshot updatePrice(String id, BigDecimal newPrice, Instant at) {
@@ -125,7 +125,7 @@ public final class StockRegistry {
         }
 
         synchronized void restore(BigDecimal price, BigDecimal previous, BigDecimal high, BigDecimal low, Trend trend,
-                                  Instant haltedUntil, boolean bankrupt, Instant updatedAt) {
+                                  Instant haltedUntil, boolean bankrupt, Instant updatedAt, ZoneId zone) {
             this.price = bankrupt ? Money.ZERO : clamp(price);
             this.previous = clamp(previous);
             this.dailyHigh = clamp(high);
@@ -134,6 +134,7 @@ public final class StockRegistry {
             this.haltedUntil = haltedUntil;
             this.bankrupt = bankrupt;
             this.updatedAt = updatedAt;
+            this.tradingDay = updatedAt.equals(Instant.EPOCH) ? null : updatedAt.atZone(zone).toLocalDate();
         }
 
         synchronized StockSnapshot update(BigDecimal value, Instant at, ZoneId zone) {

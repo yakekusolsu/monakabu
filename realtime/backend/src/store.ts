@@ -1,5 +1,5 @@
 import pg from "pg";
-import type { IngestEvent, MarketNews, MarketState, SeasonState, StockState } from "./types.js";
+import type { DailyMarketReport, IngestEvent, MarketNews, MarketState, SeasonState, StockState } from "./types.js";
 
 const { Pool } = pg;
 
@@ -155,12 +155,12 @@ export class Store {
 }
 
 export function emptyState(): MarketState {
-  return { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [] };
+  return { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null };
 }
 
 export function reduceState(previous: MarketState, event: IngestEvent): MarketState {
-  if (event.type === "market.snapshot") return normalizeSnapshot(event.data);
-  const state: MarketState = structuredClone(previous);
+  if (event.type === "market.snapshot") return normalizeSnapshot(event.data, previous.dailyReport ?? null);
+  const state: MarketState = { ...structuredClone(previous), dailyReport: previous.dailyReport ?? null };
   if (event.type === "stock.price.changed") {
     const stock = event.data as StockState;
     state.stocks = [...state.stocks.filter((item) => item.id !== stock.id), stock]
@@ -174,11 +174,13 @@ export function reduceState(previous: MarketState, event: IngestEvent): MarketSt
   } else if (event.type === "market.event.ended") {
     const news = event.data as MarketNews;
     state.activeEvents = state.activeEvents.filter((item) => item.instanceId !== news.instanceId);
+  } else if (event.type === "market.daily.report") {
+    state.dailyReport = event.data as DailyMarketReport;
   }
   return state;
 }
 
-function normalizeSnapshot(value: unknown): MarketState {
+function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketReport | null): MarketState {
   const candidate = value as Partial<MarketState> | null;
   return {
     currency: typeof candidate?.currency === "string" ? candidate.currency : "MONA",
@@ -186,5 +188,6 @@ function normalizeSnapshot(value: unknown): MarketState {
     season: candidate?.season ?? null,
     stocks: Array.isArray(candidate?.stocks) ? candidate.stocks : [],
     activeEvents: Array.isArray(candidate?.activeEvents) ? candidate.activeEvents : [],
+    dailyReport: candidate?.dailyReport ?? previousDailyReport,
   };
 }

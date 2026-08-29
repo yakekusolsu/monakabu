@@ -11,6 +11,8 @@ import jp.monakaserver.monakabu.database.repository.RealtimeOutboxRepository;
 import jp.monakaserver.monakabu.market.MarketEventService;
 import jp.monakaserver.monakabu.market.StockRegistry;
 import jp.monakaserver.monakabu.model.ActiveMarketEvent;
+import jp.monakaserver.monakabu.model.DailyMarketReport;
+import jp.monakaserver.monakabu.model.DailyStockRange;
 import jp.monakaserver.monakabu.model.Season;
 import jp.monakaserver.monakabu.model.StockSnapshot;
 import jp.monakaserver.monakabu.season.SeasonService;
@@ -170,6 +172,10 @@ public final class RealtimeService implements Listener, AutoCloseable {
         publish("market.snapshot", data);
     }
 
+    public void publishDailyReport(DailyMarketReport report) {
+        publish("market.daily.report", dailyReportData(report));
+    }
+
     private void publish(String type, Map<String, Object> data) {
         if (!enabled) return;
         String eventId = "RT-" + UUID.randomUUID();
@@ -232,6 +238,27 @@ public final class RealtimeService implements Listener, AutoCloseable {
         data.put("modifier", event.definition().modifier());
         data.put("startedAt", event.startedAt().toString());
         data.put("endsAt", event.endsAt().toString());
+        return data;
+    }
+
+    private Map<String, Object> dailyReportData(DailyMarketReport report) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("reportDate", report.reportDate().toString());
+        data.put("generatedAt", report.generatedAt().toString());
+        List<Map<String, Object>> ranges = new ArrayList<>();
+        for (DailyStockRange stock : report.stocks()) {
+            Map<String, Object> range = new LinkedHashMap<>();
+            range.put("stockId", stock.stockId());
+            range.put("symbol", stock.symbol());
+            range.put("displayName", stock.displayName());
+            range.put("currentPrice", stock.currentPrice());
+            range.put("dailyHigh", stock.dailyHigh());
+            range.put("dailyLow", stock.dailyLow());
+            range.put("range", stock.range());
+            range.put("rangePercent", stock.rangePercent());
+            ranges.add(range);
+        }
+        data.put("stocks", ranges);
         return data;
     }
 

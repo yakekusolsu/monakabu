@@ -37,12 +37,30 @@ export interface MarketNews {
   endsAt: string;
 }
 
+export interface DailyStockRange {
+  stockId: string;
+  symbol: string;
+  displayName: string;
+  currentPrice: number;
+  dailyHigh: number;
+  dailyLow: number;
+  range: number;
+  rangePercent: number;
+}
+
+export interface DailyMarketReport {
+  reportDate: string;
+  generatedAt: string;
+  stocks: DailyStockRange[];
+}
+
 export interface MarketState {
   currency: string;
   marketOpen: boolean;
   season: SeasonState | null;
   stocks: StockState[];
   activeEvents: MarketNews[];
+  dailyReport: DailyMarketReport | null;
 }
 
 export interface IngestEvent {
