@@ -6,6 +6,7 @@ const wsUrl = ((import.meta.env.VITE_WS_URL as string | undefined) ?? apiUrl.rep
 const serverId = (import.meta.env.VITE_SERVER_ID as string | undefined) ?? "monaka-main";
 const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [] };
 const periods = ["1h", "6h", "24h", "7d"] as const;
+const periodLabels: Record<Period, string> = { "1h": "1時間", "6h": "6時間", "24h": "24時間", "7d": "7日" };
 type Period = typeof periods[number];
 type Connection = "connecting" | "live" | "offline";
 
@@ -97,29 +98,32 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><span className="brand-mark">M</span><div><strong>MonaKabu</strong><small>MONAKA LIVE MARKET</small></div></div>
-        <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "LIVE" : connection === "connecting" ? "接続中" : "再接続中"}</div>
+        <div className="brand"><span className="brand-mark">株</span><div><strong>MonaKabu掲示板</strong><small>MONAKA SERVER 株価実況板</small></div></div>
+        <nav className="board-nav" aria-label="ページ内メニュー"><a href="#market">市場一覧</a><a href="#chart">チャート</a><a href="#about">案内</a></nav>
+        <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
       <main>
         <section className="market-hero">
-          <div><p className="eyebrow">MARKET STATUS</p><h1>市場を、ゲームの外でも。</h1><p className="lead">Minecraft内で確定した株価をリアルタイム配信しています。</p></div>
+          <div className="board-intro"><p className="eyebrow">■ 株式市場実況板</p><h1>MonaKabu＠MONAKA SERVER</h1><p className="lead">Minecraft内の株価を実況する掲示板です。値動きは自動更新されます。<br />煽り・買い占め・狼狽売りはほどほどに。</p></div>
           <MarketClock season={market.season} open={market.marketOpen} />
         </section>
 
         {market.activeEvents.length > 0 && <News events={market.activeEvents} stocks={market.stocks} />}
 
+        <div className="thread-title" id="market">銘柄一覧＠現在の株価</div>
         <section className="stock-grid" aria-label="銘柄一覧">
-          {market.stocks.map((stock) => <StockCard key={stock.id} stock={stock} currency={market.currency} selected={stock.id === selectedId} onClick={() => setSelectedId(stock.id)} />)}
+          {market.stocks.map((stock, index) => <StockCard key={stock.id} index={index + 1} stock={stock} currency={market.currency} selected={stock.id === selectedId} onClick={() => setSelectedId(stock.id)} />)}
           {market.stocks.length === 0 && <div className="empty">最初の市場スナップショットを待っています…</div>}
         </section>
 
-        {selected && <section className="chart-panel">
+        {selected && <section className="chart-panel" id="chart">
+          <div className="thread-title">【{selected.symbol}】{plain(selected.displayName)} 株価実況スレ</div>
           <div className="chart-heading">
-            <div><p className="symbol">{selected.symbol}</p><h2>{plain(selected.displayName)}</h2></div>
+            <div><p className="post-meta"><span>1</span> 名前：<b>名無しさん＠投資中</b> 投稿日：{dateTime(selected.updatedAt)} ID:{selected.symbol}</p><h2>{plain(selected.displayName)}の現在値を実況します</h2></div>
             <div className="quote"><strong>{money(selected.price)}</strong><span>{market.currency}</span><Change value={selected.changePercent} /></div>
           </div>
-          <div className="periods">{periods.map((value) => <button className={period === value ? "active" : ""} key={value} onClick={() => setPeriod(value)}>{value}</button>)}</div>
+          <div className="periods"><span>表示期間：</span>{periods.map((value) => <button className={period === value ? "active" : ""} key={value} onClick={() => setPeriod(value)}>[{periodLabels[value]}]</button>)}</div>
           <PriceChart points={history} positive={selected.changePercent >= 0} loading={historyLoading} />
           <div className="metrics">
             <Metric label="本日の高値" value={`${money(selected.dailyHigh)} ${market.currency}`} />
@@ -130,18 +134,18 @@ export default function App() {
         </section>}
       </main>
 
-      <footer><span>MonaKabu Public Market Data</span><span>受信: {lastReceived ? dateTime(lastReceived) : "待機中"}</span></footer>
+      <footer id="about"><span>MonaKabu Public Market Data / MONAKA SERVER</span><span>最終受信：{lastReceived ? dateTime(lastReceived) : "待機中"}</span><a href="#">▲ページ上部へ</a></footer>
     </div>
   );
 }
 
-function StockCard({ stock, currency, selected, onClick }: { stock: StockState; currency: string; selected: boolean; onClick: () => void }) {
+function StockCard({ index, stock, currency, selected, onClick }: { index: number; stock: StockState; currency: string; selected: boolean; onClick: () => void }) {
   return <button className={`stock-card ${selected ? "selected" : ""}`} onClick={onClick}>
-    <div className="stock-title"><span className="ticker">{stock.symbol}</span>{stock.halted && <span className="halted">停止中</span>}</div>
-    <h3>{plain(stock.displayName)}</h3>
-    <div className="card-price"><strong>{money(stock.price)}</strong><span>{currency}</span></div>
-    <Change value={stock.changePercent} />
-    <div className={`trend-line ${stock.changePercent >= 0 ? "up" : "down"}`} />
+    <p className="post-meta"><span>{index}</span> 名前：<b>{plain(stock.displayName)}</b> 投稿日：{dateTime(stock.updatedAt)} ID:{stock.symbol}</p>
+    <div className="post-body"><div className="stock-title"><span className="ticker">銘柄コード：{stock.symbol}</span>{stock.halted && <span className="halted">取引停止中</span>}</div>
+      <div className="card-price"><strong>{money(stock.price)}</strong><span>{currency}</span></div>
+      <Change value={stock.changePercent} /><span className="stock-comment">　{stock.changePercent >= 0 ? "上がってるぞ(ﾟ∀ﾟ)" : "下がってる…(´・ω・｀)"}</span>
+    </div>
   </button>;
 }
 
@@ -183,7 +187,7 @@ function MarketClock({ season, open }: { season: SeasonState | null; open: boole
 
 function News({ events, stocks }: { events: MarketNews[]; stocks: StockState[] }) {
   const latest = events.at(-1)!; const symbol = stocks.find((stock) => stock.id === latest.stockId)?.symbol ?? latest.stockId;
-  return <section className="news"><span>市場速報</span><strong>{latest.name}</strong><p>{plain(latest.message)}</p><small>{symbol} · {latest.modifier >= 1 ? "好材料" : "悪材料"}</small></section>;
+  return <section className="news"><span>【市場速報】</span><strong>{latest.name}</strong><p>{plain(latest.message)}</p><small>{symbol} / {latest.modifier >= 1 ? "好材料ｷﾀ━━(ﾟ∀ﾟ)━━!!" : "悪材料…"}</small></section>;
 }
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) { return <div className="metric"><span>{label}</span><strong className={accent}>{value}</strong></div>; }
