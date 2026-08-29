@@ -17,7 +17,6 @@ import jp.monakaserver.monakabu.season.SeasonService;
 import jp.monakaserver.monakabu.util.MainThread;
 import jp.monakaserver.monakabu.util.Money;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Map;
@@ -47,7 +46,7 @@ public final class TradingService {
         if(!busy.add(player.getUniqueId()))return CompletableFuture.completedFuture(TradeResult.failure("BUSY"));
         CompletableFuture<TradeResult> future;
         try{
-            Season season=requireOpenSeason();StockSnapshot stock=requireTradable(stockId);double feePercent=configs.config().getDouble("fees.buy.percent",1);double balance=economy.balance(player);UUID playerId=player.getUniqueId();String playerName=player.getName();
+            Season season=requireOpenSeason();StockSnapshot stock=requireTradable(stockId);double feePercent=Math.max(0,configs.config().getDouble("fees.buy.percent",1));double balance=economy.balance(player);UUID playerId=player.getUniqueId();String playerName=player.getName();
             long maxShares=permissionLong(player,"monakabu.limit.shares.",configs.config().getLong("limits.max-shares-per-stock",1000));
             BigDecimal maxInvestment=permissionMoney(player,"monakabu.limit.investment.",BigDecimal.valueOf(configs.config().getDouble("limits.max-total-investment",10_000_000)));
             future=database.transaction(c->{players.upsert(c,playerId,playerName);PortfolioPosition position=repository.position(c,playerId,stockId,season.id()).orElse(new PortfolioPosition(playerId,stockId,season.id(),0,Money.ZERO));
@@ -96,7 +95,13 @@ public final class TradingService {
 
     private Season requireOpenSeason(){Season season=seasons.current();if(season==null||!seasons.isOpen())throw new IllegalStateException("MARKET_CLOSED");return season;}
     private StockSnapshot requireTradable(String id){StockSnapshot stock=stocks.find(id).orElseThrow(()->new IllegalArgumentException("UNKNOWN_STOCK"));if(stock.halted(Instant.now()))throw new IllegalStateException("STOCK_HALTED");return stock;}
-    private long maximumBuy(double balance,BigDecimal price,double feePercent,long remaining){BigDecimal unit=price.add(Money.percent(price,feePercent));if(unit.signum()<=0)return 0;long affordable=BigDecimal.valueOf(balance).divide(unit,0,RoundingMode.DOWN).longValue();return Math.max(0,Math.min(remaining,affordable));}
+    static long maximumBuy(double balance,BigDecimal price,double feePercent,long remaining){
+        if(!Double.isFinite(balance)||balance<=0||price.signum()<=0||remaining<=0)return 0;
+        BigDecimal available=BigDecimal.valueOf(balance);long low=0,high=remaining;
+        while(low<high){long distance=high-low;long middle=low+distance/2+distance%2;if(totalBuyCost(price,middle,feePercent).compareTo(available)<=0)low=middle;else high=middle-1;}
+        return low;
+    }
+    static BigDecimal totalBuyCost(BigDecimal price,long shares,double feePercent){BigDecimal gross=Money.normalize(price.multiply(BigDecimal.valueOf(shares)));return Money.normalize(gross.add(Money.percent(gross,Math.max(0,feePercent))));}
     private long permissionLong(Player player,String prefix,long fallback){long best=fallback;for(PermissionAttachmentInfo info:player.getEffectivePermissions())if(info.getValue()&&info.getPermission().startsWith(prefix))try{best=Math.max(best,Long.parseLong(info.getPermission().substring(prefix.length())));}catch(NumberFormatException ignored){}return best;}
     private BigDecimal permissionMoney(Player player,String prefix,BigDecimal fallback){BigDecimal best=fallback;for(PermissionAttachmentInfo info:player.getEffectivePermissions())if(info.getValue()&&info.getPermission().startsWith(prefix))try{best=best.max(new BigDecimal(info.getPermission().substring(prefix.length())));}catch(NumberFormatException ignored){}return best;}
     private String reason(Throwable throwable){Throwable root=throwable;while(root.getCause()!=null)root=root.getCause();return root.getMessage()==null?"ERROR":root.getMessage();}

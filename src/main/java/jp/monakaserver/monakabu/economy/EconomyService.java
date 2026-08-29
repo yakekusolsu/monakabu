@@ -19,13 +19,23 @@ public final class EconomyService {
     }
 
     public boolean has(Player player, BigDecimal amount) {
-        return economy.has(player, amount.doubleValue());
+        ensurePrimaryThread();
+        double rawBalance = economy.getBalance(player);
+        return amount.signum() >= 0 && Double.isFinite(rawBalance)
+                && BigDecimal.valueOf(rawBalance).compareTo(amount) >= 0;
     }
 
     public double balance(Player player) { return economy.getBalance(player); }
 
     public EconomyResponse withdraw(Player player, BigDecimal amount) {
         ensurePrimaryThread();
+        double rawAmount = amount.doubleValue();
+        double rawBalance = economy.getBalance(player);
+        if (amount.signum() < 0 || !Double.isFinite(rawAmount) || !Double.isFinite(rawBalance)
+                || BigDecimal.valueOf(rawBalance).compareTo(amount) < 0) {
+            return new EconomyResponse(0, rawBalance, EconomyResponse.ResponseType.FAILURE,
+                    "Insufficient balance");
+        }
         return economy.withdrawPlayer(player, amount.doubleValue());
     }
 
