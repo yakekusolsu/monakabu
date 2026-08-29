@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -32,6 +33,7 @@ public final class MarketEventService {
     private final MarketEventRepository repository; private final MessageService messages; private final Supplier<Season> seasonSupplier;
     private final Map<String, MarketEventDefinition> definitions = new ConcurrentHashMap<>();
     private final Map<String, ActiveMarketEvent> active = new ConcurrentHashMap<>();
+    private final Set<String> startingStocks = ConcurrentHashMap.newKeySet();
 
     public MarketEventService(JavaPlugin plugin, ConfigManager configs, DatabaseManager database, MarketEventRepository repository,
                               MessageService messages, Supplier<Season> seasonSupplier) {
@@ -77,8 +79,8 @@ public final class MarketEventService {
 
     private Optional<MarketEventDefinition> weightedRandom() {
         ArrayList<MarketEventDefinition> candidates = new ArrayList<>(definitions.values());
-        candidates.removeIf(def -> active.values().stream().anyMatch(a ->
-                !Collections.disjoint(a.definition().stockIds(), def.stockIds())));
+        Instant now = Instant.now();
+        candidates.removeIf(def -> targetsUnavailable(def, now));
         int total = candidates.stream().mapToInt(MarketEventDefinition::weight).sum(); if (total <= 0) return Optional.empty();
         int roll = ThreadLocalRandom.current().nextInt(total);
         for (MarketEventDefinition candidate : candidates) { roll -= candidate.weight(); if (roll < 0) return Optional.of(candidate); }
@@ -89,12 +91,28 @@ public final class MarketEventService {
         MarketEventDefinition definition = definitions.get(eventId); Season season = seasonSupplier.get();
         if (definition == null || season == null || season.status() != jp.monakaserver.monakabu.model.MarketStatus.OPEN) return false;
         Instant now = Instant.now();
+        synchronized (startingStocks) {
+            if (targetsUnavailable(definition, now)) return false;
+            startingStocks.addAll(definition.stockIds());
+        }
         ActiveMarketEvent event = new ActiveMarketEvent("EVT-" + java.util.UUID.randomUUID(), definition, now, now.plus(definition.duration()));
-        database.transaction(c -> { repository.start(c, event, season.id()); return null; }).thenRun(() -> {
+        database.transaction(c -> { repository.start(c, event, season.id()); return null; }).whenComplete((ignored, error) -> {
+            if (error != null) {
+                synchronized (startingStocks) { startingStocks.removeAll(definition.stockIds()); }
+                plugin.getLogger().log(Level.SEVERE, "Market event start failed", error);
+                return;
+            }
             active.put(event.instanceId(), event);
+            synchronized (startingStocks) { startingStocks.removeAll(definition.stockIds()); }
             MainThread.run(plugin, () -> { Bukkit.getPluginManager().callEvent(new MarketEventStartEvent(event)); Bukkit.broadcast(messages.raw(definition.message())); });
-        }).exceptionally(error -> { plugin.getLogger().log(Level.SEVERE, "Market event start failed", error); return null; });
+        });
         return true;
+    }
+
+    private boolean targetsUnavailable(MarketEventDefinition definition, Instant now) {
+        return !Collections.disjoint(startingStocks, definition.stockIds())
+                || active.values().stream().anyMatch(event -> event.activeAt(now)
+                && !Collections.disjoint(event.definition().stockIds(), definition.stockIds()));
     }
 
     public boolean startForStock(String stockId, String eventId) {
