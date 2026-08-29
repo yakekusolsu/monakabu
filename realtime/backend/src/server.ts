@@ -13,8 +13,11 @@ const sharedSecret = required("MONAKABU_SHARED_SECRET");
 if (sharedSecret.length < 32) throw new Error("MONAKABU_SHARED_SECRET must contain at least 32 characters");
 const expectedServerId = process.env.MONAKABU_SERVER_ID?.trim() || null;
 const maxSignatureAge = Number(process.env.SIGNATURE_MAX_AGE_SECONDS ?? 300);
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
-  .split(",").map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = new Set([
+  "https://monakabu-realtime-dashboard.vercel.app",
+  ...(process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
+    .split(",").map((origin) => origin.trim()).filter(Boolean),
+]);
 
 const store = new Store(databaseUrl, process.env.DATABASE_SSL === "true");
 await store.migrate();
@@ -171,7 +174,7 @@ function validServerId(value: string): boolean {
 }
 
 function originAllowed(origin?: string): boolean {
-  return origin === undefined || allowedOrigins.includes(origin);
+  return origin === undefined || allowedOrigins.has(origin);
 }
 
 function header(value: string | string[] | undefined): string {

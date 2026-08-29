@@ -8,3 +8,5 @@ run/
 **/.env
 **/.env.local
 *.tsbuildinfo
+.vercel/
+.vercel-cli/
