@@ -55,7 +55,7 @@ public final class DailyReportService implements AutoCloseable {
         close();
         if (!configs.config().getBoolean("daily-report.enabled", true)) return;
         ZoneId zone = ZoneId.of(configs.config().getString("timezone", "Asia/Tokyo"));
-        LocalTime time = LocalTime.parse(configs.config().getString("daily-report.time", "21:00"));
+        LocalTime time = LocalTime.parse(configs.config().getString("daily-report.time", "21:15"));
         schedule = new DailyReportSchedule(time, zone);
         long period = Math.max(20, configs.config().getLong("daily-report.check-interval-seconds", 30) * 20);
         task = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::audit, 20, period);
@@ -108,7 +108,7 @@ public final class DailyReportService implements AutoCloseable {
     }
 
     private String gameMessage(DailyMarketReport report) {
-        StringBuilder text = new StringBuilder("<gold><bold>【MonaKabu 21:00 日次相場】</bold></gold>")
+        StringBuilder text = new StringBuilder("<gold><bold>【MonaKabu 21:15 日次相場】</bold></gold>")
                 .append("<newline><gray>").append(report.reportDate().format(DateTimeFormatter.ofPattern("yyyy/MM/dd")))
                 .append(" 本日の値幅</gray>");
         for (DailyStockRange stock : report.stocks()) {

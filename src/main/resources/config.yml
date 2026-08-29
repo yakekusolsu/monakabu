@@ -57,7 +57,7 @@ events:
 
 daily-report:
   enabled: true
-  time: '21:00'
+  time: '21:15'
   check-interval-seconds: 30
   game-broadcast: true
   webhook: true

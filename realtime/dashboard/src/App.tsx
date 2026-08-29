@@ -197,7 +197,7 @@ function News({ events, stocks }: { events: MarketNews[]; stocks: StockState[] }
 
 function DailyReport({ report, currency }: { report: DailyMarketReport; currency: string }) {
   return <section className="daily-report" aria-labelledby="daily-report-title">
-    <div className="thread-title" id="daily-report-title">【21:00】本日の値幅まとめ＠{report.reportDate}</div>
+    <div className="thread-title" id="daily-report-title">【21:15】本日の値幅まとめ＠{report.reportDate}</div>
     <p className="daily-report-note">本日の高値と安値の差です。更新：{dateTime(report.generatedAt)}</p>
     <div className="daily-report-scroll">
       <table className="daily-report-table">

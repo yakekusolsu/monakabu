@@ -10,16 +10,16 @@ import org.junit.jupiter.api.Test;
 
 class DailyReportScheduleTest {
     private final DailyReportSchedule schedule = new DailyReportSchedule(
-            LocalTime.of(21, 0), ZoneId.of("Asia/Tokyo"));
+            LocalTime.of(21, 15), ZoneId.of("Asia/Tokyo"));
 
     @Test
     void isNotDueBeforeConfiguredLocalTime() {
-        assertThat(schedule.dueDate(Instant.parse("2026-08-29T11:59:59Z"))).isEmpty();
+        assertThat(schedule.dueDate(Instant.parse("2026-08-29T12:14:59Z"))).isEmpty();
     }
 
     @Test
     void isDueFromConfiguredLocalTime() {
-        assertThat(schedule.dueDate(Instant.parse("2026-08-29T12:00:00Z")))
+        assertThat(schedule.dueDate(Instant.parse("2026-08-29T12:15:00Z")))
                 .contains(LocalDate.of(2026, 8, 29));
     }
 }
