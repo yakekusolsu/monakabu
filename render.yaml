@@ -2,10 +2,13 @@ services:
   - type: web
     name: monakabu-realtime-api
     runtime: docker
+    plan: free
+    region: singapore
     rootDir: realtime/backend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./realtime/backend/Dockerfile
+    dockerContext: ./realtime/backend
     healthCheckPath: /health
-    autoDeploy: true
+    autoDeployTrigger: commit
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -14,7 +17,7 @@ services:
       - key: DATABASE_SSL
         value: "false"
       - key: MONAKABU_SHARED_SECRET
-        generateValue: true
+        sync: false
       - key: MONAKABU_SERVER_ID
         value: monaka-main
       - key: ALLOWED_ORIGINS
@@ -24,5 +27,8 @@ services:
 
 databases:
   - name: monakabu-realtime-db
+    plan: free
+    region: singapore
     databaseName: monakabu_realtime
     user: monakabu
+    ipAllowList: []

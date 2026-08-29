@@ -22,7 +22,7 @@ PowerShell:
 
 1. このディレクトリを含むMonaKabuリポジトリをGitHub等へpushします。
 2. Renderで Blueprint を作成し、リポジトリ直下の `render.yaml` を読み込ませます。
-3. Web Serviceの `MONAKABU_SHARED_SECRET` を手順1の値に変更します。
+3. Blueprint作成画面で `MONAKABU_SHARED_SECRET` を求められたら、手順1の値を入力します。
 4. `MONAKABU_SERVER_ID` はプラグインの `realtime.server-id` と同じ値にします。
 5. 最初は `ALLOWED_ORIGINS=http://localhost:5173` とし、Vercel URL確定後に更新します。
 6. `https://<Renderドメイン>/health` が `{"status":"ok"...}` を返すことを確認します。
@@ -34,7 +34,7 @@ Renderを手動作成する場合の設定:
 - Health Check Path: `/health`
 - PostgreSQLを一つ作成し、その内部接続URLを `DATABASE_URL` に指定
 - `DATABASE_SSL=false`（Render内部接続の場合）
-- 常時WebSocket接続を維持する運用ではスリープしないインスタンスを推奨
+- Blueprintは意図しない課金を避けるため初期値を無料プランにしています。動作確認後、常時WebSocket接続を維持する本番運用ではWeb ServiceとPostgreSQLを有料プランへ変更してください。
 - Web Serviceは1インスタンスで運用してください。複数インスタンスへ拡張する場合はRedis等の共有Pub/Subを追加してください。
 
 ## 3. Vercelへ画面を作る
