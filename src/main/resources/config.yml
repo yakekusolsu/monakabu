@@ -128,6 +128,13 @@ realtime:
     # 0は無制限再送。公開サーバーでは0を推奨します。
     max-attempts: 0
 
+# /monakabu link でサイトと連携し、オフライン中も注文を処理します。
+web-trading:
+  enabled: true
+  link-code-lifetime: 10m
+  order-poll-interval: 2s
+  max-shares-per-order: 1000
+
 hologram:
   max-count: 20
   chart-period: 24h

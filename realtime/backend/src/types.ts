@@ -72,3 +72,36 @@ export interface IngestEvent {
   pluginVersion: string;
   data: unknown;
 }
+
+export interface WebPortfolioPosition {
+  stockId: string;
+  shares: number;
+  averageCost: number;
+}
+
+export interface WebAccountSnapshot {
+  balance: number;
+  portfolio: WebPortfolioPosition[];
+  capturedAt: string;
+}
+
+export interface WebIdentity {
+  serverId: string;
+  playerUuid: string;
+  playerName: string;
+  canBuy: boolean;
+  canSell: boolean;
+  expiresAt: string;
+}
+
+export interface WebTradeOrder {
+  orderId: string;
+  serverId: string;
+  playerUuid: string;
+  playerName: string;
+  type: "BUY" | "SELL" | "REFRESH";
+  stockId: string | null;
+  shares: number;
+  claimToken: string;
+  createdAt: string;
+}

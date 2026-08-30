@@ -98,6 +98,18 @@ Environment="MONAKABU_REALTIME_SECRET=ここに秘密鍵"
 
 サーバーを再起動するか `/monakabu reload` を実行し、コンソールの `Realtime publishing enabled` を確認します。既存のサーバープロセスへ後から設定した環境変数は反映されないため、その場合は再起動してください。
 
+Web売買を有効にする場合は同じ `config.yml` に次を追加します。既存設定に項目がない場合も、この値が標準値として自動追加されます。
+
+```yaml
+web-trading:
+  enabled: true
+  link-code-lifetime: 10m
+  order-poll-interval: 2s
+  max-shares-per-order: 1000
+```
+
+プレイヤーはゲーム内で `/monakabu link` を実行し、サイトへ8文字のコードを入力します。コードは10分・1回限りです。連携解除は `/monakabu unlink`、サイト側の現在セッションだけを終了する場合はサイトの「ログアウト」を使用します。
+
 ## API
 
 公開読み取り:
@@ -110,11 +122,25 @@ Environment="MONAKABU_REALTIME_SECRET=ここに秘密鍵"
 プラグイン専用:
 
 - `POST /v1/ingest`
+- `POST /v1/plugin/link-code`
+- `POST /v1/plugin/unlink`
+- `POST /v1/plugin/orders/claim`
+- `POST /v1/plugin/orders/result`
 - `X-MonaKabu-Timestamp`: Unix秒
 - `X-MonaKabu-Signature`: `sha256=HMAC_SHA256(secret, timestamp + "." + rawBody)`
 - `X-MonaKabu-Server`: server ID
 
 タイムスタンプの許容差は標準300秒です。MinecraftホストとRenderの時計をNTPで同期してください。
+
+認証済みWeb売買:
+
+- `POST /v1/auth/exchange`（ワンタイムコード交換）
+- `GET /v1/account`
+- `POST /v1/account/refresh`
+- `POST /v1/orders`
+- `POST /v1/auth/logout`
+
+`/v1/account`、`/v1/orders`、`/v1/account/refresh`、`/v1/auth/logout` は `Authorization: Bearer <token>` が必要です。セッショントークンは標準14日で失効します。Render環境変数 `WEB_SESSION_DAYS` で1～90日、`WEB_MAX_SHARES_PER_ORDER` でWeb注文1件の上限を変更できます。
 
 ## 障害復旧と重複防止
 
@@ -124,6 +150,8 @@ Environment="MONAKABU_REALTIME_SECRET=ここに秘密鍵"
 - Renderは `eventId` の一意制約で同じイベントを一度だけ状態へ適用します。
 - WebSocket再接続時は完全スナップショットを取得し、欠落イベントを補正します。
 - 署名は受信した生バイト列に対して検証し、古いタイムスタンプを拒否します。
+- Web注文は一意な注文UUIDをそのままプラグイン取引IDへ使用し、結果送信が失敗して再取得されても二重処理しません。
+- ワンタイムコードは使用時にDBトランザクション内で消費し、同じコードの同時利用を拒否します。
 
 ## ローカルビルド
 

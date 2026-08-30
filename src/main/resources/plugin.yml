@@ -19,6 +19,7 @@ permissions:
   monakabu.portfolio: {default: true}
   monakabu.ranking: {default: true}
   monakabu.history: {default: true}
+  monakabu.webtrade: {default: true}
   monakabu.admin: {default: op, children: {monakabu.admin.reload: true, monakabu.admin.price: true, monakabu.admin.event: true, monakabu.admin.halt: true, monakabu.admin.season: true, monakabu.admin.portfolio: true, monakabu.admin.hologram: true}}
   monakabu.admin.reload: {default: op}
   monakabu.admin.price: {default: op}

@@ -5,10 +5,10 @@ import java.math.BigDecimal;
 import java.util.Iterator;
 import java.util.Map;
 
-final class JsonEncoder {
+public final class JsonEncoder {
     private JsonEncoder() {}
 
-    static String encode(Object value) {
+    public static String encode(Object value) {
         StringBuilder result = new StringBuilder(512);
         append(result, value);
         return result.toString();

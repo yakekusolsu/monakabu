@@ -31,3 +31,13 @@ export interface MarketState {
 
 export interface RealtimeEvent { type: string; data: unknown; timestamp: string; }
 export interface HistoryPoint { price: number; recordedAt: string; }
+
+export interface WebPortfolioPosition { stockId: string; shares: number; averageCost: number; }
+export interface WebAccountSnapshot { balance: number; portfolio: WebPortfolioPosition[]; capturedAt: string; }
+export interface WebIdentity { serverId: string; playerUuid: string; playerName: string; canBuy: boolean; canSell: boolean; expiresAt: string; }
+export interface WebOrder {
+  orderId: string; type: "BUY" | "SELL" | "REFRESH"; stockId: string | null; shares: number;
+  status: "PENDING" | "CLAIMED" | "COMPLETED" | "FAILED" | "CANCELLED";
+  createdAt: string; completedAt: string | null; result: { reason?: string; net?: number; transactionId?: string } | null;
+}
+export interface WebAccountResponse { identity: WebIdentity; account: WebAccountSnapshot | null; orders: WebOrder[]; }

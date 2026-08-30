@@ -176,6 +176,34 @@ public final class RealtimeService implements Listener, AutoCloseable {
         publish("market.daily.report", dailyReportData(report));
     }
 
+    public CompletableFuture<String> postSigned(String path, Object data) {
+        if (!enabled) return CompletableFuture.failedFuture(new IllegalStateException("REALTIME_DISABLED"));
+        String payload = JsonEncoder.encode(data);
+        long timestamp = Instant.now().getEpochSecond();
+        try {
+            String signature = sign(timestamp + "." + payload);
+            HttpRequest request = HttpRequest.newBuilder(endpoint.resolve(path))
+                    .timeout(requestTimeout)
+                    .header("Content-Type", "application/json")
+                    .header("User-Agent", "MonaKabu/" + plugin.getPluginMeta().getVersion())
+                    .header("X-MonaKabu-Server", serverId)
+                    .header("X-MonaKabu-Timestamp", Long.toString(timestamp))
+                    .header("X-MonaKabu-Signature", "sha256=" + signature)
+                    .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                    .build();
+            return client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    .thenCompose(response -> response.statusCode() >= 200 && response.statusCode() < 300
+                            ? CompletableFuture.completedFuture(response.body())
+                            : CompletableFuture.failedFuture(new IllegalStateException("HTTP " + response.statusCode())));
+        } catch (GeneralSecurityException | IllegalArgumentException error) {
+            return CompletableFuture.failedFuture(error);
+        }
+    }
+
+    public String serverId() {
+        return serverId;
+    }
+
     private void publish(String type, Map<String, Object> data) {
         if (!enabled) return;
         String eventId = "RT-" + UUID.randomUUID();

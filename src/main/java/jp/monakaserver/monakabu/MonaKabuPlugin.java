@@ -34,6 +34,7 @@ import jp.monakaserver.monakabu.season.SettlementService;
 import jp.monakaserver.monakabu.season.RewardService;
 import jp.monakaserver.monakabu.trading.TradingService;
 import jp.monakaserver.monakabu.webhook.WebhookService;
+import jp.monakaserver.monakabu.web.WebTradingService;
 import java.time.ZoneId;
 import java.util.Objects;
 import java.util.logging.Level;
@@ -42,7 +43,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class MonaKabuPlugin extends JavaPlugin {
     private ConfigManager configs;private DatabaseManager database;private StockRegistry stocks;private MarketService market;private MarketEventService marketEvents;
-    private SeasonService seasons;private TradingService trading;private WebhookService webhook;private HologramService holograms;private RealtimeService realtime;private DailyReportService dailyReports;
+    private SeasonService seasons;private TradingService trading;private WebhookService webhook;private HologramService holograms;private RealtimeService realtime;private DailyReportService dailyReports;private WebTradingService webTrading;
 
     @Override public void onEnable(){
         try{
@@ -63,8 +64,9 @@ public final class MonaKabuPlugin extends JavaPlugin {
             holograms=new HologramService(this,configs,database,hologramRepository,stocks,market,seasons,messages);getServer().getPluginManager().registerEvents(holograms,this);holograms.restore();
             webhook=new WebhookService(this,configs,stocks,market,seasons);getServer().getPluginManager().registerEvents(webhook,this);
             realtime=new RealtimeService(this,configs,database,realtimeOutboxRepository,stocks,marketEvents,seasons);getServer().getPluginManager().registerEvents(realtime,this);realtime.start();
+            webTrading=new WebTradingService(this,configs,realtime,trading,economy,messages);webTrading.start();
             dailyReports=new DailyReportService(this,configs,database,dailyReportRepository,stocks,messages,webhook,realtime);dailyReports.start();
-            MonaKabuCommand command=new MonaKabuCommand(this,configs,stocks,market,marketEvents,seasons,trading,gui,holograms,database,statsRepository,messages,this::reloadPlugin);
+            MonaKabuCommand command=new MonaKabuCommand(this,configs,stocks,market,marketEvents,seasons,trading,gui,holograms,webTrading,database,statsRepository,messages,this::reloadPlugin);
             PluginCommand registered=Objects.requireNonNull(getCommand("monakabu"));registered.setExecutor(command);registered.setTabCompleter(command);
             if(getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")){new PlaceholderService(this,stocks,seasons,trading,database,statsRepository,settlementRepository).register();getLogger().info("PlaceholderAPI integration enabled");}
             MonaKabu.register(new MonaKabuAPIImpl(stocks,trading,seasons));market.start();getLogger().info("MonaKabu "+getPluginMeta().getVersion()+" enabled. Season "+seasons.current().number()+" / "+seasons.current().status());
@@ -72,11 +74,11 @@ public final class MonaKabuPlugin extends JavaPlugin {
     }
 
     private void reloadPlugin(){
-        configs.load();stocks.load(configs.stocks().getConfigurationSection("stocks"));marketEvents.reloadDefinitions();market.stop();market.reloadSettings();seasons.reloadSchedule();market.start();if(webhook!=null)webhook.reload();if(realtime!=null)realtime.reload();if(dailyReports!=null)dailyReports.reload();if(holograms!=null)holograms.refreshAll();
+        configs.load();stocks.load(configs.stocks().getConfigurationSection("stocks"));marketEvents.reloadDefinitions();market.stop();market.reloadSettings();seasons.reloadSchedule();market.start();if(webhook!=null)webhook.reload();if(realtime!=null)realtime.reload();if(webTrading!=null)webTrading.reload();if(dailyReports!=null)dailyReports.reload();if(holograms!=null)holograms.refreshAll();
         StockRepository repository=new StockRepository();database.transaction(c->{repository.synchronizeDefinitions(c,stocks.all());repository.restore(c,stocks);return null;}).exceptionally(error->{getLogger().log(Level.SEVERE,"Stock reload persistence failed",error);return null;});
     }
 
     @Override public void onDisable(){
-        MonaKabu.unregister();if(market!=null)market.stop();if(seasons!=null)seasons.shutdown();if(dailyReports!=null)dailyReports.close();if(webhook!=null)webhook.close();if(realtime!=null)realtime.close();if(holograms!=null)holograms.close();if(database!=null)database.close();getLogger().info("MonaKabu disabled safely");
+        MonaKabu.unregister();if(market!=null)market.stop();if(seasons!=null)seasons.shutdown();if(dailyReports!=null)dailyReports.close();if(webTrading!=null)webTrading.close();if(webhook!=null)webhook.close();if(realtime!=null)realtime.close();if(holograms!=null)holograms.close();if(database!=null)database.close();getLogger().info("MonaKabu disabled safely");
     }
 }

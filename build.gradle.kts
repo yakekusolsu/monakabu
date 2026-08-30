@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "jp.monakaserver"
-version = "1.4.2"
+version = "1.5.0"
 
 repositories {
     mavenCentral()
@@ -21,6 +21,7 @@ dependencies {
     implementation("com.zaxxer:HikariCP:6.3.1")
     implementation("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("com.mysql:mysql-connector-j:9.4.0")
+    implementation("com.google.code.gson:gson:2.11.0")
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -55,6 +56,7 @@ tasks.shadowJar {
     archiveBaseName.set("MonaKabu")
     archiveClassifier.set("")
     relocate("com.zaxxer.hikari", "jp.monakaserver.monakabu.lib.hikari")
+    relocate("com.google.gson", "jp.monakaserver.monakabu.lib.gson")
     mergeServiceFiles()
 }
 

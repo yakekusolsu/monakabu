@@ -187,6 +187,8 @@ GUI表示中のクリックは上部・下部を含めてキャンセルし、Sh
 | `/monakabu stats [player]` | 統計 |
 | `/monakabu ranking` | ランキング |
 | `/monakabu history` | 取引履歴 |
+| `/monakabu link` | サイト連携用ワンタイムコード発行 |
+| `/monakabu unlink` | 全サイトセッションを失効 |
 | `/monakabu admin` | 管理GUI |
 | `/monakabu reload` | 設定再読込 |
 | `/monakabu price <stock> <price>` | 株価変更 |
@@ -206,7 +208,7 @@ GUI表示中のクリックは上部・下部を含めてキャンセルし、Sh
 
 ## 権限
 
-一般: `monakabu.use`, `monakabu.trade`, `monakabu.buy`, `monakabu.sell`, `monakabu.portfolio`, `monakabu.ranking`, `monakabu.history`
+一般: `monakabu.use`, `monakabu.trade`, `monakabu.buy`, `monakabu.sell`, `monakabu.portfolio`, `monakabu.ranking`, `monakabu.history`, `monakabu.webtrade`
 
 管理: `monakabu.admin`, `monakabu.admin.reload`, `monakabu.admin.price`, `monakabu.admin.event`, `monakabu.admin.halt`, `monakabu.admin.season`, `monakabu.admin.portfolio`
 
@@ -293,6 +295,22 @@ realtime:
 秘密鍵は32文字以上とし、MinecraftサーバーとRenderの `MONAKABU_SHARED_SECRET` に同じ値を設定します。送信前にイベントを `realtime_outbox` へ保存するため、Render停止中やネットワーク障害中も市場処理を止めず、復旧後に順番に再送します。Render側では `(server_id, event_id)` の一意制約で再送を重複反映しません。
 
 完全なデプロイ手順、環境変数、ローカル実行方法は [`realtime/README.md`](realtime/README.md) を参照してください。
+
+### ワンタイムコードによるWeb売買
+
+```yaml
+web-trading:
+  enabled: true
+  link-code-lifetime: 10m
+  order-poll-interval: 2s
+  max-shares-per-order: 1000
+```
+
+ゲーム内で `/monakabu link` を実行すると、8文字のコードが表示されます。公開サイトの「Minecraft連携・Web売買」へ10分以内に入力してください。コードは1回使用すると失効し、サイトセッションは標準14日間有効です。`/monakabu unlink` は発行中コードと全セッションを失効し、未処理注文を取り消します。
+
+サイトの注文はRender PostgreSQLのキューへ入り、プラグインが外向きHTTPSで取得してVaultとMonaKabu DBへ反映します。Minecraftサーバー停止中は注文が保留され、起動後に処理されます。同じWeb注文UUIDをMonaKabuの取引IDに固定するため、タイムアウトや再取得が起きても二重売買しません。購入時は処理直前のVault残高を再検証し、売却代金は既存の冪等なPending Payment経由でオフライン入金します。
+
+公開市場WebSocketにはプレイヤー情報を含めません。UUID、残高、保有株、注文履歴はBearerセッション認証済みの `/v1/account` だけが返します。ワンタイムコードとセッショントークンはRender DBにSHA-256ハッシュで保存され、平文では保存しません。
 
 ## 外部API
 

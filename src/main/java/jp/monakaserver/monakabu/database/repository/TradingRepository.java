@@ -20,6 +20,23 @@ public final class TradingRepository {
     public record PreparedBuy(String transactionId, UUID uuid, String stockId, long seasonId, long shares,
                               BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal net) {}
     public record SellCommit(long resultingShares, BigDecimal realizedProfit, String paymentId) {}
+    public record StoredTransaction(String transactionId, UUID uuid, String stockId, long seasonId,
+                                    TransactionType type, TransactionStatus status, long shares,
+                                    BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal tax, BigDecimal net) {}
+
+    public Optional<StoredTransaction> transaction(Connection connection, String transactionId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT uuid,stock_id,season_id,type,status,shares,price,gross,fee,tax,net FROM transactions WHERE transaction_id=?")) {
+            statement.setString(1, transactionId);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return Optional.empty();
+                return Optional.of(new StoredTransaction(transactionId, UUID.fromString(rs.getString("uuid")),
+                        rs.getString("stock_id"), rs.getLong("season_id"), TransactionType.valueOf(rs.getString("type")),
+                        TransactionStatus.valueOf(rs.getString("status")), rs.getLong("shares"), rs.getBigDecimal("price"),
+                        rs.getBigDecimal("gross"), rs.getBigDecimal("fee"), rs.getBigDecimal("tax"), rs.getBigDecimal("net")));
+            }
+        }
+    }
 
     public Optional<PortfolioPosition> position(Connection connection, UUID uuid, String stockId, long seasonId) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("SELECT shares,average_cost FROM portfolios WHERE uuid=? AND stock_id=? AND season_id=?")) {

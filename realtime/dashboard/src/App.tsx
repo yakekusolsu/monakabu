@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, RealtimeEvent, SeasonState, StockState } from "./types";
+import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, RealtimeEvent, SeasonState, StockState, WebAccountResponse } from "./types";
 
 const apiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 const wsUrl = ((import.meta.env.VITE_WS_URL as string | undefined) ?? apiUrl.replace(/^http/, "ws")).replace(/\/$/, "");
@@ -99,7 +99,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">株</span><div><strong>MonaKabu掲示板</strong><small>MONAKA SERVER 株価実況板</small></div></div>
-        <nav className="board-nav" aria-label="ページ内メニュー"><a href="#market">市場一覧</a><a href="#chart">チャート</a><a href="#about">案内</a></nav>
+        <nav className="board-nav" aria-label="ページ内メニュー"><a href="#market">市場一覧</a><a href="#chart">チャート</a><a href="#web-trading">Web取引</a><a href="#about">案内</a></nav>
         <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
@@ -112,6 +112,8 @@ export default function App() {
         {market.activeEvents.length > 0 && <News events={market.activeEvents} stocks={market.stocks} />}
 
         {market.dailyReport && <DailyReport report={market.dailyReport} currency={market.currency} />}
+
+        <WebTrading market={market} selected={selected} />
 
         <div className="thread-title" id="market">銘柄一覧＠現在の株価</div>
         <section className="stock-grid" aria-label="銘柄一覧">
@@ -214,6 +216,86 @@ function DailyReport({ report, currency }: { report: DailyMarketReport; currency
   </section>;
 }
 
+function WebTrading({ market, selected }: { market: MarketState; selected: StockState | null }) {
+  const [token, setToken] = useState(() => window.localStorage.getItem("monakabu-web-token") ?? "");
+  const [account, setAccount] = useState<WebAccountResponse | null>(null);
+  const [code, setCode] = useState("");
+  const [shares, setShares] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const loadAccount = async (session = token) => {
+    if (!session) return;
+    try {
+      const response = await fetch(`${apiUrl}/v1/account`, { headers: { Authorization: `Bearer ${session}` }, cache: "no-store" });
+      if (response.status === 401) { window.localStorage.removeItem("monakabu-web-token"); setToken(""); setAccount(null); return; }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setAccount(await response.json() as WebAccountResponse);
+    } catch { setMessage("アカウント情報を取得できませんでした。"); }
+  };
+
+  useEffect(() => {
+    if (!token) return;
+    void loadAccount(token);
+    const timer = window.setInterval(() => void loadAccount(token), 3_000);
+    return () => window.clearInterval(timer);
+  }, [token]);
+
+  const exchange = async () => {
+    setLoading(true); setMessage("");
+    try {
+      const response = await fetch(`${apiUrl}/v1/auth/exchange`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId, code: code.toUpperCase() }) });
+      const value = await response.json() as { token?: string; error?: string };
+      if (!response.ok || !value.token) throw new Error(value.error ?? "連携に失敗しました");
+      window.localStorage.setItem("monakabu-web-token", value.token); setToken(value.token); setCode(""); setMessage("Minecraftアカウントと連携しました。");
+    } catch (error) { setMessage(error instanceof Error && error.message.includes("expired") ? "コードが無効・期限切れ・使用済みです。" : "連携できませんでした。コードを確認してください。"); }
+    finally { setLoading(false); }
+  };
+
+  const order = async (type: "BUY" | "SELL") => {
+    if (!selected || !token || !Number.isSafeInteger(shares) || shares < 1) return;
+    const verb = type === "BUY" ? "購入" : "売却";
+    if (!window.confirm(`${plain(selected.displayName)}を${shares}株${verb}しますか？`)) return;
+    setLoading(true); setMessage("");
+    try {
+      const response = await fetch(`${apiUrl}/v1/orders`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), type, stockId: selected.id, shares }) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setMessage(`${verb}注文を受け付けました。Minecraftサーバーで処理中です。`); await loadAccount(token);
+    } catch { setMessage("注文を受け付けられませんでした。市場状態と入力内容を確認してください。"); }
+    finally { setLoading(false); }
+  };
+
+  const refreshAccount = async () => {
+    if (!token) return; setLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/v1/account/refresh`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID() }) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setMessage("残高・保有株の更新を依頼しました。");
+    } catch { setMessage("残高更新を依頼できませんでした。"); }
+    finally { setLoading(false); }
+  };
+
+  const logout = async () => {
+    if (token) void fetch(`${apiUrl}/v1/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    window.localStorage.removeItem("monakabu-web-token"); setToken(""); setAccount(null); setMessage("サイトからログアウトしました。");
+  };
+
+  const holding = selected ? account?.account?.portfolio.find((position) => position.stockId === selected.id)?.shares ?? 0 : 0;
+  return <section className="web-trading" id="web-trading">
+    <div className="thread-title">【本人認証】Minecraft連携・Web売買</div>
+    {!token ? <div className="link-box">
+      <div><p className="post-meta"><span>認証方法</span> 名前：<b>MonaKabu運営</b></p><p>Minecraft内で <code>/monakabu link</code> を実行し、表示された8文字のコードを入力してください。</p><small>コードは10分間・1回限りです。他人には共有しないでください。</small></div>
+      <div className="link-form"><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 8))} placeholder="ABCDEFG2" maxLength={8} autoComplete="one-time-code" aria-label="連携コード"/><button disabled={loading || code.length !== 8} onClick={() => void exchange()}>[連携する]</button></div>
+    </div> : <div className="account-box">
+      <div className="account-head"><div><span>ログイン中：</span><strong>{account?.identity.playerName ?? "確認中…"}</strong></div><div><button onClick={() => void refreshAccount()} disabled={loading}>[残高更新]</button><button onClick={() => void logout()}>[ログアウト]</button></div></div>
+      <div className="account-summary"><div><span>利用可能残高</span><strong>{money(account?.account?.balance ?? 0)} {market.currency}</strong></div><div><span>選択銘柄の保有</span><strong>{selected ? `${holding} 株` : "—"}</strong></div><div><span>情報更新</span><strong>{account?.account ? dateTime(account.account.capturedAt) : "待機中"}</strong></div></div>
+      {selected && <div className="order-form"><div><b>{plain(selected.displayName)}</b><span>{money(selected.price)} {market.currency} / 1株（成行・手数料別）</span></div><label>株数 <input type="number" min="1" max="1000" step="1" value={shares} onChange={(event) => setShares(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))} /></label><button className="buy-order" disabled={loading || account?.identity.canBuy === false || !market.marketOpen || selected.halted || selected.bankrupt} onClick={() => void order("BUY")}>買う</button><button className="sell-order" disabled={loading || account?.identity.canSell === false || !market.marketOpen || selected.halted || selected.bankrupt || holding < shares} onClick={() => void order("SELL")}>売る</button></div>}
+      {account?.orders.length ? <div className="web-orders"><h3>最近の注文</h3>{account.orders.slice(0, 6).map((item) => <div key={item.orderId}><span>{dateTime(item.createdAt)}</span><b>{item.type === "BUY" ? "購入" : item.type === "SELL" ? "売却" : "更新"} {item.stockId ?? ""} {item.shares || ""}</b><em className={`order-${item.status.toLowerCase()}`}>{orderStatus(item.status, item.result?.reason)}</em></div>)}</div> : null}
+    </div>}
+    {message && <p className="web-message">{message}</p>}
+  </section>;
+}
+
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) { return <div className="metric"><span>{label}</span><strong className={accent}>{value}</strong></div>; }
 function ConfigurationError() { return <div className="configuration-error"><h1>MonaKabu Live</h1><p>VITE_API_URL と VITE_WS_URL をVercelの環境変数に設定してください。</p></div>; }
 function applyEvent(current: MarketState, event: RealtimeEvent): MarketState {
@@ -234,3 +316,5 @@ function dateTime(value: string) { return new Intl.DateTimeFormat("ja-JP", { mon
 function pad(value: number) { return value.toString().padStart(2, "0"); }
 function trendLabel(value: StockState["trend"]) { return value === "BULL" ? "強気" : value === "BEAR" ? "弱気" : "通常"; }
 function statusLabel(value?: SeasonState["status"]) { return ({ OPENING: "開場準備", CLOSING: "終了処理", SETTLEMENT: "決済中", CLOSED: "閉場中" } as Record<string, string>)[value ?? ""] ?? "待機中"; }
+function orderStatus(status: string, reason?: string) { return status === "COMPLETED" ? "完了" : status === "FAILED" ? `失敗${reason ? `: ${reasonLabel(reason)}` : ""}` : status === "CANCELLED" ? "取消" : status === "CLAIMED" ? "処理中" : "受付済み"; }
+function reasonLabel(reason: string) { return ({ NOT_ENOUGH_MONEY: "残高不足", NOT_ENOUGH_SHARES: "保有株不足", MARKET_CLOSED: "市場閉場", STOCK_HALTED: "取引停止", LIMIT_SHARES: "保有上限", LIMIT_INVESTMENT: "投資上限", BUSY: "別の注文を処理中", WEB_ORDER_LIMIT: "注文上限超過", REVIEW_REQUIRED: "管理者確認中" } as Record<string, string>)[reason] ?? reason; }

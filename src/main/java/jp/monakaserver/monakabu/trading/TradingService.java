@@ -17,6 +17,7 @@ import jp.monakaserver.monakabu.season.SeasonService;
 import jp.monakaserver.monakabu.util.MainThread;
 import jp.monakaserver.monakabu.util.Money;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import net.milkbowl.vault.economy.EconomyResponse;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -88,6 +90,44 @@ public final class TradingService {
             })).exceptionally(error->TradeResult.failure(reason(error)));
         }catch(Throwable error){future=CompletableFuture.completedFuture(TradeResult.failure(reason(error)));}
         return future.whenComplete((result,error)->busy.remove(player.getUniqueId()));
+    }
+
+    public CompletableFuture<TradeResult> buyWeb(UUID playerId,String playerName,String stockId,long shares,String orderId){
+        if(shares<=0)return CompletableFuture.completedFuture(TradeResult.failure("INVALID_AMOUNT"));
+        if(!busy.add(playerId))return CompletableFuture.completedFuture(TradeResult.failure("BUSY"));
+        String transactionId="WEB-BUY-"+orderId;
+        CompletableFuture<TradeResult> future=database.read(c->webResult(c,transactionId,playerId,jp.monakaserver.monakabu.model.TransactionType.BUY))
+                .thenCompose(existing->{
+                    if(existing!=null)return existing.success()?payments.payPending(playerId).thenApply(ignored->existing):CompletableFuture.completedFuture(existing);
+                    Season season=requireOpenSeason();StockSnapshot stock=requireTradable(stockId);double feePercent=Math.max(0,configs.config().getDouble("fees.buy.percent",1));
+                    long maxShares=configs.config().getLong("limits.max-shares-per-stock",1000);BigDecimal maxInvestment=BigDecimal.valueOf(configs.config().getDouble("limits.max-total-investment",10_000_000));
+                    return database.transaction(c->{players.upsert(c,playerId,playerName);BigDecimal gross=Money.normalize(stock.price().multiply(BigDecimal.valueOf(shares)));BigDecimal fee=Money.percent(gross,feePercent);BigDecimal total=Money.normalize(gross.add(fee));return repository.prepareBuy(c,transactionId,playerId,stockId,season.id(),shares,stock.price(),gross,fee,total,maxShares,maxInvestment);})
+                            .thenCompose(plan->MainThread.call(plugin,()->{OfflinePlayer player=Bukkit.getOfflinePlayer(playerId);EconomyResponse response=economy.withdraw(player,plan.net());return new WithdrawAttempt(response.transactionSuccess(),response.errorMessage);})
+                                    .thenCompose(attempt->{if(!attempt.success())return database.transaction(c->{repository.failBuy(c,transactionId,attempt.error());return TradeResult.failure("NOT_ENOUGH_MONEY");});return database.transaction(c->{repository.markBuyEconomyApplied(c,transactionId);long resulting=repository.completeBuy(c,plan);return new TradeResult(true,"",transactionId,stockId,shares,plan.gross(),plan.fee(),Money.ZERO,plan.net(),resulting);}).exceptionallyCompose(error->recoverFailedBuy(plan,error));}));
+                });
+        return future.exceptionally(error->TradeResult.failure(reason(error))).whenComplete((result,error)->busy.remove(playerId));
+    }
+
+    public CompletableFuture<TradeResult> sellWeb(UUID playerId,String playerName,String stockId,long shares,String orderId){
+        if(shares<=0)return CompletableFuture.completedFuture(TradeResult.failure("INVALID_AMOUNT"));
+        if(!busy.add(playerId))return CompletableFuture.completedFuture(TradeResult.failure("BUSY"));
+        String transactionId="WEB-SELL-"+orderId;
+        CompletableFuture<TradeResult> future=database.read(c->webResult(c,transactionId,playerId,jp.monakaserver.monakabu.model.TransactionType.SELL))
+                .thenCompose(existing->{
+                    if(existing!=null)return existing.success()?payments.payPending(playerId).thenApply(ignored->existing):CompletableFuture.completedFuture(existing);
+                    Season season=requireOpenSeason();StockSnapshot stock=requireTradable(stockId);double feePercent=Math.max(0,configs.config().getDouble("fees.sell.percent",2));double taxPercent=Math.max(0,configs.config().getDouble("capital-gains-tax.percent",10));boolean taxEnabled=configs.config().getBoolean("capital-gains-tax.enabled",true);
+                    return database.transaction(c->{players.upsert(c,playerId,playerName);PortfolioPosition position=repository.position(c,playerId,stockId,season.id()).orElseThrow(()->new IllegalStateException("NOT_ENOUGH_SHARES"));if(shares>position.shares())throw new IllegalStateException("NOT_ENOUGH_SHARES");BigDecimal gross=Money.normalize(stock.price().multiply(BigDecimal.valueOf(shares)));BigDecimal fee=Money.percent(gross,feePercent);BigDecimal basis=Money.normalize(position.averageCost().multiply(BigDecimal.valueOf(shares)));BigDecimal taxable=gross.subtract(fee).subtract(basis).max(Money.ZERO);BigDecimal tax=taxEnabled?Money.percent(taxable,taxPercent):Money.ZERO;BigDecimal net=Money.normalize(gross.subtract(fee).subtract(tax).max(Money.ZERO));TradingRepository.SellCommit commit=repository.commitSell(c,transactionId,playerId,stockId,season.id(),shares,stock.price(),gross,fee,tax,net);return new TradeResult(true,"",transactionId,stockId,shares,gross,fee,tax,net,commit.resultingShares());})
+                            .thenCompose(result->payments.payPending(playerId).thenApply(ignored->result));
+                });
+        return future.exceptionally(error->TradeResult.failure(reason(error))).whenComplete((result,error)->busy.remove(playerId));
+    }
+
+    private TradeResult webResult(java.sql.Connection connection,String transactionId,UUID playerId,jp.monakaserver.monakabu.model.TransactionType expected)throws SQLException{
+        TradingRepository.StoredTransaction stored=repository.transaction(connection,transactionId).orElse(null);if(stored==null)return null;
+        if(!stored.uuid().equals(playerId)||stored.type()!=expected)return TradeResult.failure("ORDER_CONFLICT");
+        if(stored.status()!=jp.monakaserver.monakabu.model.TransactionStatus.COMPLETED)return TradeResult.failure("REVIEW_REQUIRED");
+        long resulting=repository.position(connection,playerId,stored.stockId(),stored.seasonId()).map(PortfolioPosition::shares).orElse(0L);
+        return new TradeResult(true,"",transactionId,stored.stockId(),stored.shares(),stored.gross(),stored.fee(),stored.tax(),stored.net(),resulting);
     }
 
     public CompletableFuture<java.util.List<PortfolioPosition>> portfolio(UUID uuid){Season season=seasons.current();if(season==null)return CompletableFuture.completedFuture(java.util.List.of());return database.read(c->repository.portfolio(c,uuid,season.id()));}

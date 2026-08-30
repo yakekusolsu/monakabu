@@ -23,6 +23,10 @@ services:
         sync: false
       - key: SIGNATURE_MAX_AGE_SECONDS
         value: "300"
+      - key: WEB_SESSION_DAYS
+        value: "14"
+      - key: WEB_MAX_SHARES_PER_ORDER
+        value: "1000"
 
 databases:
   - name: monakabu-realtime-db
