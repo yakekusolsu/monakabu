@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, RealtimeEvent, SeasonState, StockState, WebAccountResponse } from "./types";
 
 const apiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
@@ -128,7 +129,7 @@ export default function App() {
             <div className="quote"><strong>{money(selected.price)}</strong><span>{market.currency}</span><Change value={selected.changePercent} /></div>
           </div>
           <div className="periods"><span>表示期間：</span>{periods.map((value) => <button className={period === value ? "active" : ""} key={value} onClick={() => setPeriod(value)}>[{periodLabels[value]}]</button>)}</div>
-          <PriceChart points={history} positive={selected.changePercent >= 0} loading={historyLoading} />
+          <PriceChart points={history} positive={selected.changePercent >= 0} loading={historyLoading} currency={market.currency} />
           <div className="metrics">
             <Metric label="本日の高値" value={`${money(selected.dailyHigh)} ${market.currency}`} />
             <Metric label="本日の安値" value={`${money(selected.dailyLow)} ${market.currency}`} />
@@ -158,7 +159,8 @@ function Change({ value }: { value: number }) {
   return <span className={`change ${positive ? "positive" : "negative"}`}>{positive ? "▲" : "▼"} {Math.abs(value).toFixed(2)}%</span>;
 }
 
-function PriceChart({ points, positive, loading }: { points: HistoryPoint[]; positive: boolean; loading: boolean }) {
+function PriceChart({ points, positive, loading, currency }: { points: HistoryPoint[]; positive: boolean; loading: boolean; currency: string }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   if (loading && points.length === 0) return <div className="chart-empty">チャートを読み込み中…</div>;
   if (points.length < 2) return <div className="chart-empty">価格履歴が2件以上になるとチャートを表示します</div>;
   const values = points.map((point) => point.price);
@@ -169,13 +171,36 @@ function PriceChart({ points, positive, loading }: { points: HistoryPoint[]; pos
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(" ");
   const area = `0,280 ${coordinates} 1000,280`;
+  const safeHoveredIndex = hoveredIndex === null ? null : Math.min(hoveredIndex, points.length - 1);
+  const hovered = safeHoveredIndex === null ? null : points[safeHoveredIndex]!;
+  const hoverX = safeHoveredIndex === null ? 0 : (safeHoveredIndex / (points.length - 1)) * 1000;
+  const hoverY = hovered ? 260 - ((hovered.price - minimum) / range) * 220 : 0;
+  const selectPointer = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / Math.max(1, bounds.width)));
+    setHoveredIndex(Math.round(ratio * (points.length - 1)));
+  };
+  const selectKeyboard = (event: ReactKeyboardEvent<SVGSVGElement>) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "Home") setHoveredIndex(0);
+    else if (event.key === "End") setHoveredIndex(points.length - 1);
+    else setHoveredIndex((current) => Math.max(0, Math.min(points.length - 1, (current ?? points.length - 1) + (event.key === "ArrowRight" ? 1 : -1))));
+  };
   return <div className="chart-wrap">
-    <svg viewBox="0 0 1000 300" role="img" aria-label="株価チャート" preserveAspectRatio="none">
-      <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={positive ? "#42e8a1" : "#ff6577"} stopOpacity=".32"/><stop offset="1" stopColor={positive ? "#42e8a1" : "#ff6577"} stopOpacity="0"/></linearGradient></defs>
-      {[60, 120, 180, 240].map((y) => <line key={y} x1="0" x2="1000" y1={y} y2={y} className="grid-line" />)}
-      <polygon points={area} fill="url(#chartFill)" />
-      <polyline points={coordinates} className={positive ? "chart-up" : "chart-down"} />
-    </svg>
+    <div className="chart-plot">
+      <svg viewBox="0 0 1000 300" role="img" aria-label="株価チャート。カーソル、タップ、左右矢印キーで価格を確認できます" preserveAspectRatio="none" tabIndex={0}
+        onPointerDown={selectPointer} onPointerMove={selectPointer} onPointerLeave={(event) => { if (event.pointerType === "mouse") setHoveredIndex(null); }} onKeyDown={selectKeyboard} onBlur={() => setHoveredIndex(null)}>
+        <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={positive ? "#42e8a1" : "#ff6577"} stopOpacity=".32"/><stop offset="1" stopColor={positive ? "#42e8a1" : "#ff6577"} stopOpacity="0"/></linearGradient></defs>
+        {[60, 120, 180, 240].map((y) => <line key={y} x1="0" x2="1000" y1={y} y2={y} className="grid-line" />)}
+        <polygon points={area} fill="url(#chartFill)" />
+        <polyline points={coordinates} className={positive ? "chart-up" : "chart-down"} />
+        {hovered && <><line x1={hoverX} x2={hoverX} y1="20" y2="275" className="chart-cursor-line"/><circle cx={hoverX} cy={hoverY} r="6" className={positive ? "chart-point-up" : "chart-point-down"}/></>}
+      </svg>
+      {hovered && <div className={`chart-tooltip ${hoverY < 85 ? "below" : ""} ${hoverX > 820 ? "align-right" : hoverX < 180 ? "align-left" : ""}`} style={{ left: `${hoverX / 10}%`, top: `${hoverY / 3}%` }} role="status">
+        <strong>{money(hovered.price)} {currency}</strong><span>{dateTime(hovered.recordedAt)}</span>
+      </div>}
+    </div>
     <div className="chart-range"><span>{dateTime(points[0]!.recordedAt)}</span><span>{money(maximum)} / {money(minimum)}</span><span>{dateTime(points.at(-1)!.recordedAt)}</span></div>
   </div>;
 }

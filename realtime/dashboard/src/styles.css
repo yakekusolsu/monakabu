@@ -137,11 +137,29 @@ h1 { margin: 0; color: #800000; font-size: clamp(23px, 4vw, 34px); line-height: 
 .periods button.active { color: #fff; background: #008000; text-decoration: none; }
 
 .chart-wrap { height: 340px; margin: 0 20px; padding: 10px 12px 0; border: 1px solid #aaa; background: #fff; }
-.chart-wrap svg { width: 100%; height: 280px; overflow: visible; }
+.chart-plot { position: relative; height: 280px; }
+.chart-wrap svg { width: 100%; height: 100%; overflow: visible; touch-action: pan-y; cursor: crosshair; }
+.chart-wrap svg:focus-visible { outline: 2px solid #d99a00; outline-offset: 2px; }
 .grid-line { stroke: #ccc; stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
 .chart-up, .chart-down { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .chart-up { stroke: #cc0000; }
 .chart-down { stroke: #0000cc; }
+.chart-cursor-line { stroke: #555; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.chart-point-up, .chart-point-down { stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.chart-point-up { fill: #cc0000; }.chart-point-down { fill: #0000cc; }
+.chart-tooltip { position: absolute; z-index: 3; min-width: 138px; padding: 7px 9px; color: #fff; border: 1px solid #222; background: rgba(20, 20, 20, .92); box-shadow: 1px 2px 4px rgba(0, 0, 0, .25); transform: translate(-50%, calc(-100% - 10px)); pointer-events: none; white-space: nowrap; }
+.chart-tooltip::after { position: absolute; bottom: -6px; left: calc(50% - 5px); width: 9px; height: 9px; border-right: 1px solid #222; border-bottom: 1px solid #222; background: rgba(20, 20, 20, .92); content: ""; transform: rotate(45deg); }
+.chart-tooltip strong, .chart-tooltip span { display: block; }
+.chart-tooltip strong { color: #ffff66; font-family: "Courier New", monospace; font-size: 14px; }
+.chart-tooltip span { margin-top: 2px; color: #ddd; font-size: 10px; }
+.chart-tooltip.below { transform: translate(-50%, 12px); }
+.chart-tooltip.below::after { top: -6px; bottom: auto; transform: rotate(225deg); }
+.chart-tooltip.align-left { transform: translate(0, calc(-100% - 10px)); }
+.chart-tooltip.align-left::after { left: 8px; }
+.chart-tooltip.align-left.below { transform: translate(0, 12px); }
+.chart-tooltip.align-right { transform: translate(-100%, calc(-100% - 10px)); }
+.chart-tooltip.align-right::after { right: 8px; left: auto; }
+.chart-tooltip.align-right.below { transform: translate(-100%, 12px); }
 .chart-range { display: flex; justify-content: space-between; color: #555; font-family: "Courier New", monospace; font-size: 10px; }
 .chart-empty { display: grid; height: 340px; margin: 0 20px; place-items: center; color: #555; border: 1px solid #aaa; background: #fff; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin: 12px 20px 20px; border: 1px solid #aaa; background: #ccc; gap: 1px; }
@@ -188,7 +206,7 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px;
   .chart-heading h2, .quote { margin-left: 12px; }
   .periods { justify-content: flex-start; flex-wrap: wrap; padding-inline: 10px; }
   .chart-wrap, .chart-empty { height: 250px; margin-inline: 8px; }
-  .chart-wrap svg { height: 205px; }
+  .chart-plot { height: 205px; }
   .metrics { margin-inline: 8px; grid-template-columns: 1fr 1fr; }
   .link-form { align-items: stretch; flex-direction: column; }
   .link-form input { width: 100%; }
