@@ -12,13 +12,14 @@ The commands below assume Debian or Ubuntu and a checkout at
 
 ```bash
 sudo apt update
-sudo apt install -y docker.io docker-compose-v2 git postgresql-client caddy
+sudo apt install -y docker.io docker-compose git postgresql-client caddy
 sudo systemctl enable --now docker caddy
 ```
 
-On a distribution without `docker-compose-v2`, install the Docker Compose
-plugin from Docker's official repository before continuing. Confirm that
-`sudo docker compose version` succeeds.
+Debian 13 (Trixie) provides Compose v2 through its `docker-compose` package.
+On a distribution where this package is unavailable, install the Docker
+Compose plugin from Docker's official repository before continuing. Confirm
+that `sudo docker compose version` succeeds.
 
 ## 2. Create the private environment
 
@@ -128,4 +129,3 @@ curl --fail "https://api.example.jp/v1/snapshot?serverId=monaka-main"
 
 Back up the database volume regularly with `pg_dump`. A Docker volume is
 persistent across container recreation, but it is not an off-server backup.
-
