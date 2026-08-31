@@ -10,6 +10,7 @@ const periods = ["1h", "6h", "24h", "7d"] as const;
 const periodLabels: Record<Period, string> = { "1h": "1時間", "6h": "6時間", "24h": "24時間", "7d": "7日" };
 type Period = typeof periods[number];
 type Connection = "connecting" | "live" | "offline";
+interface PendingTrade { type: "BUY" | "SELL"; stockId: string; stockName: string; shares: number; price: number; }
 
 export default function App() {
   const pricePage = window.location.pathname.replace(/\/+$/, "") === "/prices";
@@ -376,6 +377,7 @@ function WebTrading({ market, selected }: { market: MarketState; selected: Stock
   const [shares, setShares] = useState(1);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [pendingTrade, setPendingTrade] = useState<PendingTrade | null>(null);
 
   const loadAccount = async (session = token) => {
     if (!session) return;
@@ -405,13 +407,19 @@ function WebTrading({ market, selected }: { market: MarketState; selected: Stock
     finally { setLoading(false); }
   };
 
-  const order = async (type: "BUY" | "SELL") => {
+  const requestOrder = (type: "BUY" | "SELL") => {
     if (!selected || !token || !Number.isSafeInteger(shares) || shares < 1) return;
-    const verb = type === "BUY" ? "購入" : "売却";
-    if (!window.confirm(`${plain(selected.displayName)}を${shares}株${verb}しますか？`)) return;
+    setPendingTrade({ type, stockId: selected.id, stockName: plain(selected.displayName), shares, price: selected.price });
+  };
+
+  const submitOrder = async () => {
+    if (!pendingTrade || !token) return;
+    const order = pendingTrade;
+    const verb = order.type === "BUY" ? "購入" : "売却";
+    setPendingTrade(null);
     setLoading(true); setMessage("");
     try {
-      const response = await fetch(`${apiUrl}/v1/orders`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), type, stockId: selected.id, shares }) });
+      const response = await fetch(`${apiUrl}/v1/orders`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), type: order.type, stockId: order.stockId, shares: order.shares }) });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       setMessage(`${verb}注文を受け付けました。Minecraftサーバーで処理中です。`); await loadAccount(token);
     } catch { setMessage("注文を受け付けられませんでした。市場状態と入力内容を確認してください。"); }
@@ -442,11 +450,36 @@ function WebTrading({ market, selected }: { market: MarketState; selected: Stock
     </div> : <div className="account-box">
       <div className="account-head"><div><span>ログイン中：</span><strong>{account?.identity.playerName ?? "確認中…"}</strong></div><div><button onClick={() => void refreshAccount()} disabled={loading}>[残高更新]</button><button onClick={() => void logout()}>[ログアウト]</button></div></div>
       <div className="account-summary"><div><span>利用可能残高</span><strong>{money(account?.account?.balance ?? 0)} {market.currency}</strong></div><div><span>選択銘柄の保有</span><strong>{selected ? `${holding} 株` : "—"}</strong></div><div><span>情報更新</span><strong>{account?.account ? dateTime(account.account.capturedAt) : "待機中"}</strong></div></div>
-      {selected && <div className="order-form"><div><b>{plain(selected.displayName)}</b><span>{money(selected.price)} {market.currency} / 1株（成行・手数料別）</span></div><label>株数 <input type="number" min="1" max="1000" step="1" value={shares} onChange={(event) => setShares(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))} /></label><button className="buy-order" disabled={loading || account?.identity.canBuy === false || !market.marketOpen || selected.halted || selected.bankrupt} onClick={() => void order("BUY")}>買う</button><button className="sell-order" disabled={loading || account?.identity.canSell === false || !market.marketOpen || selected.halted || selected.bankrupt || holding < shares} onClick={() => void order("SELL")}>売る</button></div>}
+      {selected && <div className="order-form"><div><b>{plain(selected.displayName)}</b><span>{money(selected.price)} {market.currency} / 1株（成行・手数料別）</span></div><label>株数 <input type="number" min="1" max="1000" step="1" value={shares} onChange={(event) => setShares(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))} /></label><button className="buy-order" disabled={loading || account?.identity.canBuy === false || !market.marketOpen || selected.halted || selected.bankrupt} onClick={() => requestOrder("BUY")}>買う</button><button className="sell-order" disabled={loading || account?.identity.canSell === false || !market.marketOpen || selected.halted || selected.bankrupt || holding < shares} onClick={() => requestOrder("SELL")}>売る</button></div>}
       {account?.orders.length ? <div className="web-orders"><h3>最近の注文</h3>{account.orders.slice(0, 6).map((item) => <div key={item.orderId}><span>{dateTime(item.createdAt)}</span><b>{item.type === "BUY" ? "購入" : item.type === "SELL" ? "売却" : "更新"} {item.stockId ?? ""} {item.shares || ""}</b><em className={`order-${item.status.toLowerCase()}`}>{orderStatus(item.status, item.result?.reason)}</em></div>)}</div> : null}
     </div>}
     {message && <p className="web-message">{message}</p>}
+    {pendingTrade && <TradeConfirmDialog trade={pendingTrade} currency={market.currency} onCancel={() => setPendingTrade(null)} onConfirm={() => void submitOrder()} />}
   </section>;
+}
+
+function TradeConfirmDialog({ trade, currency, onCancel, onConfirm }: { trade: PendingTrade; currency: string; onCancel: () => void; onConfirm: () => void }) {
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const buy = trade.type === "BUY";
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    confirmButton.current?.focus();
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", closeOnEscape); };
+  }, []);
+  return <div className="site-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+    <section className={`site-dialog ${buy ? "dialog-buy" : "dialog-sell"}`} role="alertdialog" aria-modal="true" aria-labelledby="trade-dialog-title" aria-describedby="trade-dialog-warning">
+      <header><span aria-hidden="true">⚠</span><div><small>MonaKabu Web取引</small><h2 id="trade-dialog-title">{buy ? "購入注文" : "売却注文"}の確認</h2></div></header>
+      <div className="site-dialog-body">
+        <p id="trade-dialog-warning" className="dialog-warning">この注文はMinecraftサーバーで成立すると取り消せません。内容を確認してください。</p>
+        <dl><div><dt>銘柄</dt><dd>{trade.stockName}</dd></div><div><dt>注文</dt><dd className={buy ? "positive" : "negative"}>{buy ? "購入" : "売却"}</dd></div><div><dt>株数</dt><dd>{trade.shares.toLocaleString("ja-JP")}株</dd></div><div><dt>参考金額</dt><dd>{money(trade.price * trade.shares)} {currency}</dd></div></dl>
+        <p className="dialog-note">成行注文のため、実際の約定価格は処理時の株価になります。{buy ? "購入手数料を含む金額が残高から差し引かれます。" : "売却手数料と、設定により利益への税金が差し引かれます。"}</p>
+      </div>
+      <footer><button className="dialog-cancel" onClick={onCancel}>[やめる]</button><button ref={confirmButton} className="dialog-confirm" onClick={onConfirm}>{buy ? "この内容で購入" : "この内容で売却"}</button></footer>
+    </section>
+  </div>;
 }
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) { return <div className="metric"><span>{label}</span><strong className={accent}>{value}</strong></div>; }

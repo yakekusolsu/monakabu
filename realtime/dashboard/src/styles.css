@@ -159,6 +159,30 @@ h1 { margin: 0; color: #800000; font-size: clamp(25px, 4vw, 36px); line-height: 
 .order-completed { color: #008000; }.order-failed, .order-cancelled { color: #cc0000; }.order-pending, .order-claimed { color: #a06000; }
 .web-message { margin: 0; padding: 8px 18px; color: #800000; border-top: 1px dotted #aaa; background: #ffffcc; }
 
+.site-dialog-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; padding: 18px; place-items: center; background: rgba(25, 20, 18, .72); backdrop-filter: blur(3px); }
+.site-dialog { width: min(520px, 100%); overflow: hidden; color: #222; border: 2px solid #5e1717; background: #fff; box-shadow: 0 16px 48px rgba(0, 0, 0, .45); }
+.site-dialog > header { display: flex; gap: 12px; align-items: center; padding: 13px 17px; color: #fff; background: #800000; }
+.site-dialog.dialog-sell { border-color: #17175e; }
+.site-dialog.dialog-sell > header { background: #252579; }
+.site-dialog > header > span { font-size: 29px; line-height: 1; }
+.site-dialog > header small { display: block; color: #ffe6a8; font-size: 11px; font-weight: bold; letter-spacing: .08em; }
+.site-dialog > header h2 { margin: 1px 0 0; color: #fff; font-size: 20px; line-height: 1.25; }
+.site-dialog-body { padding: 17px 19px 12px; }
+.dialog-warning { margin: 0 0 13px; padding: 9px 11px; color: #700; border: 1px solid #d7aa00; background: #ffffcc; font-weight: bold; }
+.site-dialog dl { margin: 0; border: 1px solid #aaa; font-family: "Courier New", "Yu Gothic UI", monospace; }
+.site-dialog dl > div { display: grid; grid-template-columns: 120px 1fr; border-bottom: 1px solid #ddd; }
+.site-dialog dl > div:last-child { border-bottom: 0; }
+.site-dialog dt, .site-dialog dd { margin: 0; padding: 8px 11px; }
+.site-dialog dt { color: #555; background: #eee; font-size: 12px; font-weight: bold; }
+.site-dialog dd { text-align: right; font-weight: bold; overflow-wrap: anywhere; }
+.dialog-note { margin: 12px 0 0; color: #555; font-size: 12px; line-height: 1.7; }
+.site-dialog > footer { display: flex; justify-content: flex-end; gap: 9px; margin: 0; padding: 11px 16px; border-top: 1px solid #aaa; background: #eee; }
+.site-dialog > footer button { min-height: 39px; padding: 7px 14px; border: 2px outset #bbb; cursor: pointer; font-weight: bold; }
+.dialog-cancel { color: #0000ee; background: #fff; text-decoration: underline; }
+.dialog-confirm { color: #fff; background: #a00000; }
+.dialog-sell .dialog-confirm { background: #2020a0; }
+.site-dialog > footer button:active { border-style: inset; }
+
 .thread-title { padding: 8px 12px; color: #fff; border: 1px solid #245f24; background: #347a34; font-size: 15px; font-weight: bold; letter-spacing: .02em; }
 .stock-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; border: 1px solid #888; border-top: 0; background: #e7e7e2; }
 .stock-card { display: block; width: 100%; min-height: 205px; margin: 0; padding: 15px 17px 16px; color: #111; text-align: left; border: 1px solid #aaa; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .07); cursor: pointer; transition: background-color .15s, box-shadow .15s, transform .15s; }
@@ -326,6 +350,11 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px;
   .order-form > div { grid-column: 1 / -1; }
   .web-orders > div { grid-template-columns: 1fr auto; }
   .web-orders > div > span { grid-column: 1 / -1; }
+  .site-dialog-backdrop { padding: 8px; align-items: end; }
+  .site-dialog { max-height: calc(100dvh - 16px); overflow-y: auto; }
+  .site-dialog-body { padding: 14px 12px 10px; }
+  .site-dialog dl > div { grid-template-columns: 95px 1fr; }
+  .site-dialog > footer { position: sticky; bottom: 0; display: grid; grid-template-columns: 1fr 1fr; padding: 9px; }
 }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
