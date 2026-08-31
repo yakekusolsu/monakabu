@@ -107,12 +107,16 @@ web-trading:
 
 Paper側にGeyserまたはFloodgateがある場合、Bedrockプレイヤーにはコードをコピー可能なネイティブフォームも表示します。プロキシFloodgateからバックエンドAPIを利用する場合は、バックエンドにもFloodgateを導入し、`send-floodgate-data: true` と同一の `key.pem` を設定してください。APIが利用できない場合はチャット表示へ自動的にフォールバックします。
 
+MonaPrice 1.1.0以降を同じPaperサーバーへ導入し、`realtime.monaprice-enabled: true` にすると、MonaPriceの価格更新イベントを同じOutboxから配信します。Vercelの `/prices` が専用ページです。MonaPriceを外した場合もMonaKabuの起動・株価配信には影響しません。
+
 ## API
 
 公開読み取り:
 
 - `GET /v1/snapshot?serverId=monaka-main`
 - `GET /v1/history?serverId=monaka-main&stockId=mona_mining&period=24h`
+- `GET /v1/monaprice?serverId=monaka-main`
+- `GET /v1/monaprice/history?serverId=monaka-main&itemId=DIAMOND&period=24h`
 - `GET /v1/servers`
 - `WS /v1/stream?serverId=monaka-main`
 

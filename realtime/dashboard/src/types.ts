@@ -24,9 +24,25 @@ export interface DailyMarketReport {
   reportDate: string; generatedAt: string; stocks: DailyStockRange[];
 }
 
+export interface MonaPriceItemState {
+  id: string; displayName: string; category: string; categoryName: string;
+  price: number; previousPrice: number; changePercent: number; buyPrice: number; sellPrice: number;
+  highPrice: number; lowPrice: number; buyVolume: number; sellVolume: number; updatedAt: string;
+}
+
+export interface MonaPriceIndexState {
+  current: number; previous: number; changePercent: number; updatedAt: string;
+}
+
+export interface MonaPriceState {
+  currency: string; index: MonaPriceIndexState; nextUpdateSeconds: number;
+  capturedAt: string; sourceVersion: string; items: MonaPriceItemState[];
+}
+
 export interface MarketState {
   currency: string; marketOpen: boolean; season: SeasonState | null;
   stocks: StockState[]; activeEvents: MarketNews[]; dailyReport: DailyMarketReport | null;
+  monaPrice: MonaPriceState | null;
 }
 
 export interface RealtimeEvent { type: string; data: unknown; timestamp: string; }

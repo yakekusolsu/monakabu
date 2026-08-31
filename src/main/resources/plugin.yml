@@ -5,7 +5,7 @@ api-version: '1.21.11'
 authors: [MONAKA SERVER]
 description: 2週間シーズン制の本格株式市場プラグイン
 depend: [Vault]
-softdepend: [PlaceholderAPI, LuckPerms, floodgate, Geyser-Spigot]
+softdepend: [PlaceholderAPI, LuckPerms, MonaPrice, floodgate, Geyser-Spigot]
 commands:
   monakabu:
     description: MonaKabuを開きます

@@ -176,6 +176,14 @@ public final class RealtimeService implements Listener, AutoCloseable {
         publish("market.daily.report", dailyReportData(report));
     }
 
+    /** Publishes public state supplied by an optional, trusted server plugin. */
+    public void publishExternal(String type, Map<String, Object> data) {
+        if (type == null || !type.matches("[a-z]+(?:\\.[a-z]+){1,3}") || data == null) {
+            throw new IllegalArgumentException("Invalid external realtime event");
+        }
+        publish(type, data);
+    }
+
     public CompletableFuture<String> postSigned(String path, Object data) {
         if (!enabled) return CompletableFuture.failedFuture(new IllegalStateException("REALTIME_DISABLED"));
         String payload = JsonEncoder.encode(data);
@@ -202,6 +210,10 @@ public final class RealtimeService implements Listener, AutoCloseable {
 
     public String serverId() {
         return serverId;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
     private void publish(String type, Map<String, Object> data) {

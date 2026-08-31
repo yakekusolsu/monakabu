@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, RealtimeEvent, SeasonState, StockState, WebAccountResponse } from "./types";
+import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, MonaPriceItemState, MonaPriceState, RealtimeEvent, SeasonState, StockState, WebAccountResponse } from "./types";
 
 const apiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 const wsUrl = ((import.meta.env.VITE_WS_URL as string | undefined) ?? apiUrl.replace(/^http/, "ws")).replace(/\/$/, "");
 const serverId = (import.meta.env.VITE_SERVER_ID as string | undefined) ?? "monaka-main";
-const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null };
+const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null, monaPrice: null };
 const periods = ["1h", "6h", "24h", "7d"] as const;
 const periodLabels: Record<Period, string> = { "1h": "1時間", "6h": "6時間", "24h": "24時間", "7d": "7日" };
 type Period = typeof periods[number];
 type Connection = "connecting" | "live" | "offline";
 
 export default function App() {
+  const pricePage = window.location.pathname.replace(/\/+$/, "") === "/prices";
   const [market, setMarket] = useState<MarketState>(emptyState);
   const [connection, setConnection] = useState<Connection>("connecting");
   const [lastReceived, setLastReceived] = useState<string | null>(null);
@@ -99,12 +100,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><span className="brand-mark">株</span><div><strong>MonaKabu掲示板</strong><small>MONAKA SERVER 株価実況板</small></div></div>
-        <nav className="board-nav" aria-label="ページ内メニュー"><a href="#market">市場一覧</a><a href="#chart">チャート</a><a href="#web-trading">Web取引</a><a href="#about">案内</a></nav>
+        <div className="brand"><span className="brand-mark">{pricePage ? "物" : "株"}</span><div><strong>{pricePage ? "MonaPrice掲示板" : "MonaKabu掲示板"}</strong><small>MONAKA SERVER {pricePage ? "アイテム相場板" : "株価実況板"}</small></div></div>
+        <nav className="board-nav" aria-label="サイトメニュー"><a href="/">株式市場</a><a href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
         <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
-      <main>
+      <main>{pricePage ? <MonaPricePage state={market.monaPrice} /> : <>
         <section className="market-hero">
           <div className="board-intro"><p className="eyebrow">■ 株式市場実況板</p><h1>MonaKabu＠MONAKA SERVER</h1><p className="lead">Minecraft内の株価を実況する掲示板です。値動きは自動更新されます。<br />煽り・買い占め・狼狽売りはほどほどに。</p></div>
           <MarketClock season={market.season} open={market.marketOpen} />
@@ -137,11 +138,123 @@ export default function App() {
             <Metric label="最終更新" value={dateTime(selected.updatedAt)} />
           </div>
         </section>}
+      </>}
       </main>
 
-      <footer id="about"><span>MonaKabu Public Market Data / MONAKA SERVER</span><span>最終受信：{lastReceived ? dateTime(lastReceived) : "待機中"}</span><a href="#">▲ページ上部へ</a></footer>
+      <footer id="about"><span>{pricePage ? "MonaPrice Item Market" : "MonaKabu Public Market Data"} / MONAKA SERVER</span><span>最終受信：{lastReceived ? dateTime(lastReceived) : "待機中"}</span><a href="#">▲ページ上部へ</a></footer>
     </div>
   );
+}
+
+type ItemSort = "name" | "price-high" | "price-low" | "rise" | "fall" | "volume";
+
+function MonaPricePage({ state }: { state: MonaPriceState | null }) {
+  const [selectedId, setSelectedId] = useState("");
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [sort, setSort] = useState<ItemSort>("rise");
+  const [page, setPage] = useState(1);
+  const [period, setPeriod] = useState<Period>("24h");
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const pageSize = 50;
+
+  useEffect(() => {
+    document.title = "MonaPrice掲示板 - MONAKA SERVERアイテム相場";
+    return () => { document.title = "MonaKabu掲示板 - MONAKA SERVER株価実況板"; };
+  }, []);
+
+  useEffect(() => {
+    if (!state?.items.length) return;
+    if (!selectedId || !state.items.some((item) => item.id === selectedId)) setSelectedId(state.items[0]!.id);
+  }, [state?.items, selectedId]);
+
+  const categories = useMemo(() => {
+    const values = new Map<string, string>();
+    for (const item of state?.items ?? []) values.set(item.category, item.categoryName);
+    return [...values.entries()].sort((left, right) => left[1].localeCompare(right[1], "ja"));
+  }, [state?.items]);
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase("ja");
+    const values = (state?.items ?? []).filter((item) => (category === "all" || item.category === category)
+      && (!needle || item.id.toLowerCase().includes(needle) || item.displayName.toLocaleLowerCase("ja").includes(needle)));
+    return values.sort((left, right) => {
+      if (sort === "price-high") return right.price - left.price;
+      if (sort === "price-low") return left.price - right.price;
+      if (sort === "rise") return right.changePercent - left.changePercent;
+      if (sort === "fall") return left.changePercent - right.changePercent;
+      if (sort === "volume") return (right.buyVolume + right.sellVolume) - (left.buyVolume + left.sellVolume);
+      return left.displayName.localeCompare(right.displayName, "ja");
+    });
+  }, [state?.items, search, category, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const selected = state?.items.find((item) => item.id === selectedId) ?? null;
+
+  useEffect(() => { setPage(1); }, [search, category, sort]);
+  useEffect(() => {
+    if (!apiUrl || !selected) return;
+    const controller = new AbortController();
+    setHistoryLoading(true);
+    fetch(`${apiUrl}/v1/monaprice/history?serverId=${encodeURIComponent(serverId)}&itemId=${encodeURIComponent(selected.id)}&period=${period}`, { signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); })
+      .then((value: { points: HistoryPoint[] }) => setHistory(value.points))
+      .catch((error: Error) => { if (error.name !== "AbortError") setHistory([]); })
+      .finally(() => setHistoryLoading(false));
+    return () => controller.abort();
+  }, [period, selected?.id, selected?.updatedAt]);
+
+  if (!state) return <>
+    <section className="market-hero"><div className="board-intro"><p className="eyebrow">■ アイテム相場実況板</p><h1>MonaPrice＠MONAKA SERVER</h1><p className="lead">Minecraft内の需要と供給を反映したアイテム価格を公開します。<br />MonaPriceから最初の相場情報が届くまでお待ちください。</p></div></section>
+    <div className="empty monaprice-waiting">MonaPrice連携データを待っています…</div>
+  </>;
+
+  return <>
+    <section className="market-hero monaprice-hero">
+      <div className="board-intro"><p className="eyebrow">■ アイテム相場実況板</p><h1>MonaPrice＠MONAKA SERVER</h1><p className="lead">需要・供給と市場イベントで変動するMinecraftアイテムの参考相場です。<br />ショップでの実際の取引条件は各ショップの表示を確認してください。</p></div>
+      <div className="market-clock price-index"><div><span className="market-dot open" /><strong>物価指数</strong></div><p>全{state.items.length.toLocaleString("ja-JP")}商品</p><time>{money(state.index.current)} <small>INDEX</small></time><Change value={state.index.changePercent} /><MonaPriceCountdown state={state} /></div>
+    </section>
+
+    <section className="price-controls" id="items" aria-label="商品検索と並べ替え">
+      <label>商品検索<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="例: ダイヤモンド / DIAMOND" /></label>
+      <label>カテゴリー<select value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">すべて</option>{categories.map(([id, name]) => <option value={id} key={id}>{name}</option>)}</select></label>
+      <label>並べ替え<select value={sort} onChange={(event) => setSort(event.target.value as ItemSort)}><option value="rise">値上がり順</option><option value="fall">値下がり順</option><option value="volume">売買量順</option><option value="price-high">価格が高い順</option><option value="price-low">価格が安い順</option><option value="name">名前順</option></select></label>
+      <strong>{filtered.length.toLocaleString("ja-JP")}件</strong>
+    </section>
+
+    <section className="item-market-table" aria-label="MonaPrice商品一覧">
+      <div className="thread-title">商品相場一覧＠{dateTime(state.capturedAt)}</div>
+      <div className="item-table-scroll"><table><thead><tr><th>商品</th><th>市場価格</th><th>購入価格</th><th>売却価格</th><th>前回比</th><th>売買量</th></tr></thead>
+        <tbody>{visible.map((item) => <MonaPriceRow key={item.id} item={item} currency={state.currency} selected={item.id === selectedId} onClick={() => { setSelectedId(item.id); window.setTimeout(() => document.getElementById("price-chart")?.scrollIntoView({ behavior: "smooth" }), 0); }} />)}</tbody>
+      </table>{visible.length === 0 && <div className="empty">条件に一致する商品がありません</div>}</div>
+      <div className="pagination"><button disabled={safePage <= 1} onClick={() => setPage(1)}>[最初]</button><button disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>[前へ]</button><span>{safePage} / {pageCount}</span><button disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>[次へ]</button><button disabled={safePage >= pageCount} onClick={() => setPage(pageCount)}>[最後]</button></div>
+    </section>
+
+    {selected && <section className="chart-panel" id="price-chart">
+      <div className="thread-title">【{selected.id}】{selected.displayName} 相場実況スレ</div>
+      <div className="chart-heading"><div><p className="post-meta"><span>1</span> 名前：<b>名無しさん＠商人</b> 投稿日：{dateTime(selected.updatedAt)} ID:{selected.id}</p><h2>{selected.displayName}の市場価格</h2></div><div className="quote"><strong>{money(selected.price)}</strong><span>{state.currency}</span><Change value={selected.changePercent} /></div></div>
+      <div className="periods"><span>表示期間：</span>{periods.map((value) => <button className={period === value ? "active" : ""} key={value} onClick={() => setPeriod(value)}>[{periodLabels[value]}]</button>)}</div>
+      <PriceChart points={history} positive={selected.changePercent >= 0} loading={historyLoading} currency={state.currency} />
+      <div className="metrics monaprice-metrics"><Metric label="ショップ購入価格" value={`${money(selected.buyPrice)} ${state.currency}`} /><Metric label="ショップ売却価格" value={`${money(selected.sellPrice)} ${state.currency}`} /><Metric label="期間内高値" value={`${money(selected.highPrice)} ${state.currency}`} /><Metric label="期間内安値" value={`${money(selected.lowPrice)} ${state.currency}`} /><Metric label="買い数量" value={money(selected.buyVolume)} /><Metric label="売り数量" value={money(selected.sellVolume)} /><Metric label="カテゴリー" value={selected.categoryName} /><Metric label="最終更新" value={dateTime(selected.updatedAt)} /></div>
+    </section>}
+  </>;
+}
+
+function MonaPriceRow({ item, currency, selected, onClick }: { item: MonaPriceItemState; currency: string; selected: boolean; onClick: () => void }) {
+  return <tr className={selected ? "selected" : ""} onClick={onClick} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onClick(); } }}>
+    <th><strong>{item.displayName}</strong><small>{item.id} / {item.categoryName}</small></th><td>{money(item.price)} <small>{currency}</small></td><td className="daily-high">{money(item.buyPrice)}</td><td className="daily-low">{money(item.sellPrice)}</td><td><Change value={item.changePercent} /></td><td><span className="volume-buy">買 {money(item.buyVolume)}</span><span className="volume-sell">売 {money(item.sellVolume)}</span></td>
+  </tr>;
+}
+
+function MonaPriceCountdown({ state }: { state: MonaPriceState }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
+  const expected = Date.parse(state.capturedAt) + state.nextUpdateSeconds * 1000;
+  const seconds = Math.max(0, Math.ceil((expected - now) / 1000));
+  return <p className="next-update">次回更新まで 約{Math.floor(seconds / 60)}分{seconds % 60}秒</p>;
 }
 
 function StockCard({ index, stock, currency, selected, onClick }: { index: number; stock: StockState; currency: string; selected: boolean; onClick: () => void }) {
@@ -326,13 +439,14 @@ function ConfigurationError() { return <div className="configuration-error"><h1>
 function applyEvent(current: MarketState, event: RealtimeEvent): MarketState {
   if (event.type === "market.snapshot") {
     const snapshot = event.data as MarketState;
-    return { ...snapshot, dailyReport: snapshot.dailyReport ?? current.dailyReport ?? null };
+    return { ...snapshot, dailyReport: snapshot.dailyReport ?? current.dailyReport ?? null, monaPrice: snapshot.monaPrice ?? current.monaPrice ?? null };
   }
   if (event.type === "stock.price.changed") { const stock = event.data as StockState; return { ...current, stocks: [...current.stocks.filter((item) => item.id !== stock.id), stock].sort((a, b) => a.id.localeCompare(b.id)) }; }
   if (event.type === "season.started" || event.type === "season.ended") { const season = event.data as SeasonState; return { ...current, season, marketOpen: season.status === "OPEN" }; }
   if (event.type === "market.event.started") { const news = event.data as MarketNews; return { ...current, activeEvents: [...current.activeEvents.filter((item) => item.instanceId !== news.instanceId), news] }; }
   if (event.type === "market.event.ended") { const news = event.data as MarketNews; return { ...current, activeEvents: current.activeEvents.filter((item) => item.instanceId !== news.instanceId) }; }
   if (event.type === "market.daily.report") return { ...current, dailyReport: event.data as DailyMarketReport };
+  if (event.type === "monaprice.snapshot") return { ...current, monaPrice: event.data as MonaPriceState };
   return current;
 }
 function plain(value: string) { return value.replace(/<[^>]+>/g, ""); }

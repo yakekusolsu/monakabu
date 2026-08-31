@@ -45,7 +45,7 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.post("/v1/ingest", express.raw({ type: "application/json", limit: "512kb" }), async (request, response) => {
+app.post("/v1/ingest", express.raw({ type: "application/json", limit: "2mb" }), async (request, response) => {
   try {
     if (!Buffer.isBuffer(request.body)) return void response.status(415).json({ error: "application/json required" });
     const timestamp = header(request.headers["x-monakabu-timestamp"]);
@@ -255,6 +255,38 @@ app.get("/v1/history", async (request, response) => {
   } catch (error) {
     console.error("history failed", error);
     response.status(500).json({ error: "history failed" });
+  }
+});
+
+app.get("/v1/monaprice", async (request, response) => {
+  try {
+    const serverId = query(request.query.serverId, expectedServerId ?? "monaka-main");
+    const snapshot = await store.snapshot(serverId);
+    response.set("Cache-Control", "no-store").json({
+      serverId,
+      monaPrice: snapshot.state.monaPrice,
+      sequence: snapshot.sequence,
+      updatedAt: snapshot.updatedAt,
+    });
+  } catch (error) {
+    console.error("MonaPrice snapshot failed", error);
+    response.status(500).json({ error: "MonaPrice snapshot failed" });
+  }
+});
+
+app.get("/v1/monaprice/history", async (request, response) => {
+  try {
+    const serverId = query(request.query.serverId, expectedServerId ?? "monaka-main");
+    const materialId = query(request.query.itemId, "").toUpperCase();
+    if (!/^[A-Z0-9_]{1,96}$/.test(materialId)) return void response.status(400).json({ error: "invalid itemId" });
+    const period = query(request.query.period, "24h");
+    const duration = periods[period];
+    if (!duration) return void response.status(400).json({ error: "period must be 1h, 6h, 24h, or 7d" });
+    const points = await store.monaPriceHistory(serverId, materialId, new Date(Date.now() - duration), 2048);
+    response.set("Cache-Control", "public, max-age=15").json({ serverId, itemId: materialId, period, points });
+  } catch (error) {
+    console.error("MonaPrice history failed", error);
+    response.status(500).json({ error: "MonaPrice history failed" });
   }
 });
 

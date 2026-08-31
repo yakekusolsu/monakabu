@@ -296,6 +296,18 @@ realtime:
 
 完全なデプロイ手順、環境変数、ローカル実行方法は [`realtime/README.md`](realtime/README.md) を参照してください。
 
+### MonaPriceアイテム相場ページ
+
+MonaPriceが同じPaperサーバーに導入されている場合、MonaKabuは`MarketUpdateEvent`を任意連携として受信し、確定済みのアイテム価格を既存の署名・永続Outbox経路で配信します。専用ページは [`/prices`](https://monakabu-realtime-dashboard.vercel.app/prices) です。市場価格、ショップ購入・売却価格、前回比、高値・安値、売買量、市場指数、1時間～7日の履歴チャートを表示し、商品検索、カテゴリー絞り込み、並べ替えに対応します。
+
+```yaml
+realtime:
+  enabled: true
+  monaprice-enabled: true
+```
+
+MonaPriceは必須依存ではありません。未導入または連携無効の場合も株式市場機能は通常どおり動作します。日本語の商品名とカテゴリー名を公開するにはMonaPrice 1.1.0以降を使用してください。旧版MonaPriceではMaterial名と既定カテゴリーへ安全にフォールバックします。プレイヤー情報や取引者UUIDはMonaPrice公開データへ含めません。
+
 ### ワンタイムコードによるWeb売買
 
 ```yaml

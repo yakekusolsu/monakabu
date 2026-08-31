@@ -1,6 +1,6 @@
 import pg from "pg";
 import { randomBytes } from "node:crypto";
-import type { DailyMarketReport, IngestEvent, MarketNews, MarketState, SeasonState, StockState, WebAccountSnapshot, WebIdentity, WebTradeOrder } from "./types.js";
+import type { DailyMarketReport, IngestEvent, MarketNews, MarketState, MonaPriceItemState, MonaPriceState, SeasonState, StockState, WebAccountSnapshot, WebIdentity, WebTradeOrder } from "./types.js";
 
 const { Pool } = pg;
 
@@ -52,6 +52,17 @@ export class Store {
         ON realtime_events(server_id, sequence DESC);
       CREATE INDEX IF NOT EXISTS idx_realtime_prices_lookup
         ON realtime_prices(server_id, stock_id, recorded_at DESC);
+      CREATE TABLE IF NOT EXISTS realtime_item_prices (
+        id BIGSERIAL PRIMARY KEY,
+        server_id VARCHAR(64) NOT NULL,
+        material_id VARCHAR(96) NOT NULL,
+        price NUMERIC(20,2) NOT NULL,
+        recorded_at TIMESTAMPTZ NOT NULL,
+        event_id VARCHAR(96) NOT NULL,
+        UNIQUE(server_id, event_id, material_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_realtime_item_prices_lookup
+        ON realtime_item_prices(server_id, material_id, recorded_at DESC);
       CREATE TABLE IF NOT EXISTS web_link_codes (
         code_hash CHAR(64) PRIMARY KEY,
         server_id VARCHAR(64) NOT NULL,
@@ -331,6 +342,15 @@ export class Store {
            VALUES($1,$2,$3,$4,$5) ON CONFLICT(server_id,event_id,stock_id) DO NOTHING`,
           [event.serverId, stock.id, stock.price, stock.updatedAt || event.timestamp, event.eventId],
         );
+      } else if (event.type === "monaprice.snapshot" && state.monaPrice) {
+        await client.query(
+          `INSERT INTO realtime_item_prices(server_id,material_id,price,recorded_at,event_id)
+           SELECT $1,item.id,item.price,$3,$4
+           FROM jsonb_to_recordset($2::jsonb) AS item(id VARCHAR(96),price NUMERIC(20,2))
+           WHERE item.id ~ '^[A-Z0-9_]{1,96}$' AND item.price >= 0
+           ON CONFLICT(server_id,event_id,material_id) DO NOTHING`,
+          [event.serverId, JSON.stringify(state.monaPrice.items), event.timestamp, event.eventId],
+        );
       }
       await client.query("COMMIT");
       return { duplicate: false, sequence, state };
@@ -365,6 +385,18 @@ export class Store {
     return result.rows.map((row) => ({ price: Number(row.price), recordedAt: row.recorded_at.toISOString() }));
   }
 
+  async monaPriceHistory(serverId: string, materialId: string, since: Date, limit: number): Promise<Array<{ price: number; recordedAt: string }>> {
+    const result = await this.pool.query<{ price: string; recorded_at: Date }>(
+      `SELECT price,recorded_at FROM (
+         SELECT price,recorded_at FROM realtime_item_prices
+         WHERE server_id=$1 AND material_id=$2 AND recorded_at >= $3
+         ORDER BY recorded_at DESC LIMIT $4
+       ) points ORDER BY recorded_at`,
+      [serverId, materialId, since, limit],
+    );
+    return result.rows.map((row) => ({ price: Number(row.price), recordedAt: row.recorded_at.toISOString() }));
+  }
+
   async servers(): Promise<Array<{ serverId: string; updatedAt: string }>> {
     const result = await this.pool.query<{ server_id: string; updated_at: Date }>(
       "SELECT server_id,updated_at FROM realtime_state ORDER BY server_id",
@@ -380,6 +412,7 @@ export class Store {
     await this.pool.query("DELETE FROM web_link_codes WHERE expires_at<NOW()-INTERVAL '1 day'");
     await this.pool.query("DELETE FROM web_sessions WHERE expires_at<NOW()-INTERVAL '7 days' OR revoked_at<NOW()-INTERVAL '7 days'");
     await this.pool.query("DELETE FROM web_trade_orders WHERE completed_at<NOW()-INTERVAL '30 days'");
+    await this.pool.query("DELETE FROM realtime_item_prices WHERE recorded_at<NOW()-INTERVAL '30 days'");
   }
 
   private async getSnapshotWithClient(client: pg.PoolClient, serverId: string): Promise<{ state: MarketState; sequence: number }> {
@@ -405,12 +438,12 @@ function normalizeNumbers(value: Record<string, unknown>): Record<string, unknow
 }
 
 export function emptyState(): MarketState {
-  return { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null };
+  return { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null, monaPrice: null };
 }
 
 export function reduceState(previous: MarketState, event: IngestEvent): MarketState {
-  if (event.type === "market.snapshot") return normalizeSnapshot(event.data, previous.dailyReport ?? null);
-  const state: MarketState = { ...structuredClone(previous), dailyReport: previous.dailyReport ?? null };
+  if (event.type === "market.snapshot") return normalizeSnapshot(event.data, previous.dailyReport ?? null, previous.monaPrice ?? null);
+  const state: MarketState = { ...structuredClone(previous), dailyReport: previous.dailyReport ?? null, monaPrice: previous.monaPrice ?? null };
   if (event.type === "stock.price.changed") {
     const stock = event.data as StockState;
     state.stocks = [...state.stocks.filter((item) => item.id !== stock.id), stock]
@@ -426,11 +459,13 @@ export function reduceState(previous: MarketState, event: IngestEvent): MarketSt
     state.activeEvents = state.activeEvents.filter((item) => item.instanceId !== news.instanceId);
   } else if (event.type === "market.daily.report") {
     state.dailyReport = event.data as DailyMarketReport;
+  } else if (event.type === "monaprice.snapshot") {
+    state.monaPrice = normalizeMonaPrice(event.data);
   }
   return state;
 }
 
-function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketReport | null): MarketState {
+function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketReport | null, previousMonaPrice: MonaPriceState | null): MarketState {
   const candidate = value as Partial<MarketState> | null;
   return {
     currency: typeof candidate?.currency === "string" ? candidate.currency : "MONA",
@@ -439,5 +474,36 @@ function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketRepor
     stocks: Array.isArray(candidate?.stocks) ? candidate.stocks : [],
     activeEvents: Array.isArray(candidate?.activeEvents) ? candidate.activeEvents : [],
     dailyReport: candidate?.dailyReport ?? previousDailyReport,
+    monaPrice: candidate?.monaPrice ? normalizeMonaPrice(candidate.monaPrice) : previousMonaPrice,
+  };
+}
+
+function normalizeMonaPrice(value: unknown): MonaPriceState | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<MonaPriceState>;
+  const rawItems = Array.isArray(candidate.items) ? candidate.items : [];
+  const items: MonaPriceItemState[] = rawItems.flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const item = raw as Partial<MonaPriceItemState>;
+    const numeric = [item.price, item.previousPrice, item.changePercent, item.buyPrice, item.sellPrice,
+      item.highPrice, item.lowPrice, item.buyVolume, item.sellVolume];
+    if (typeof item.id !== "string" || !/^[A-Z0-9_]{1,96}$/.test(item.id)
+      || typeof item.displayName !== "string" || item.displayName.length > 128
+      || typeof item.category !== "string" || !/^[a-z0-9_-]{1,64}$/.test(item.category)
+      || typeof item.categoryName !== "string" || item.categoryName.length > 64
+      || numeric.some((entry) => !Number.isFinite(entry)) || !Number.isFinite(Date.parse(item.updatedAt ?? ""))) return [];
+    return [{ ...item } as MonaPriceItemState];
+  });
+  const index = candidate.index;
+  if (!index || !Number.isFinite(index.current) || !Number.isFinite(index.previous)
+    || !Number.isFinite(index.changePercent) || !Number.isFinite(Date.parse(index.updatedAt ?? ""))
+    || !Number.isFinite(Date.parse(candidate.capturedAt ?? ""))) return null;
+  return {
+    currency: typeof candidate.currency === "string" && candidate.currency.length <= 16 ? candidate.currency : "MONA",
+    index,
+    nextUpdateSeconds: Number.isFinite(candidate.nextUpdateSeconds) ? Math.max(0, Number(candidate.nextUpdateSeconds)) : 0,
+    capturedAt: candidate.capturedAt!,
+    sourceVersion: typeof candidate.sourceVersion === "string" ? candidate.sourceVersion.slice(0, 32) : "unknown",
+    items,
   };
 }

@@ -44,6 +44,37 @@ h1 { margin: 0; color: #800000; font-size: clamp(23px, 4vw, 34px); line-height: 
 .market-clock p { margin: 12px 0 5px; color: #555; font-size: 13px; }
 .market-clock time { color: #111; font-family: "Courier New", monospace; font-size: 27px; font-weight: bold; }
 .market-clock time small { color: #555; font-family: inherit; font-size: 11px; }
+.price-index .change { display: block; margin: 4px 0 0; }
+.price-index .next-update { margin: 8px 0 0; padding-top: 7px; border-top: 1px dotted #987; color: #555; font-size: 12px; }
+.monaprice-waiting { border: 1px solid #999; background: #fff; }
+
+.price-controls { display: grid; grid-template-columns: minmax(240px, 2fr) minmax(150px, 1fr) minmax(150px, 1fr) auto; gap: 10px; align-items: end; margin-bottom: 14px; padding: 12px; border: 1px solid #999; background: #ffffee; }
+.price-controls label { color: #555; font-size: 12px; font-weight: bold; }
+.price-controls input, .price-controls select { display: block; width: 100%; margin-top: 4px; padding: 8px 9px; color: #111; border: 1px solid #888; background: #fff; font: inherit; }
+.price-controls > strong { padding: 8px 10px; color: #800000; white-space: nowrap; }
+
+.item-market-table { margin-bottom: 14px; border: 1px solid #999; background: #fff; }
+.item-market-table > .thread-title { margin: -1px -1px 0; background: #6b4f1d; border-color: #4e3914; }
+.item-table-scroll { overflow-x: auto; }
+.item-market-table table { width: 100%; min-width: 850px; border-collapse: collapse; font-family: "Courier New", "Yu Gothic UI", monospace; }
+.item-market-table th, .item-market-table td { padding: 8px 11px; text-align: right; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; white-space: nowrap; }
+.item-market-table thead th { color: #fff; background: #777; font-size: 12px; }
+.item-market-table thead th:first-child, .item-market-table tbody th { text-align: left; }
+.item-market-table tbody tr { cursor: pointer; }
+.item-market-table tbody tr:nth-child(even) { background: #f3f3f3; }
+.item-market-table tbody tr:hover, .item-market-table tbody tr:focus { outline: 0; background: #fffbdc; }
+.item-market-table tbody tr.selected { background: #fff2a8; box-shadow: inset 5px 0 #d99a00; }
+.item-market-table tbody th strong, .item-market-table tbody th small { display: block; }
+.item-market-table tbody th strong { color: #008000; }
+.item-market-table tbody th small, .item-market-table td small { color: #666; font-family: "Yu Gothic UI", Meiryo, sans-serif; font-weight: normal; }
+.item-market-table .change { margin-left: 0; }
+.item-market-table .volume-buy, .item-market-table .volume-sell { display: block; font-size: 11px; }
+.volume-buy { color: #cc0000; }.volume-sell { color: #0000cc; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 8px; padding: 10px; }
+.pagination button { padding: 2px 4px; color: #0000ee; border: 0; background: transparent; text-decoration: underline; cursor: pointer; }
+.pagination button:disabled { color: #888; cursor: not-allowed; }
+.pagination span { min-width: 80px; text-align: center; font-family: "Courier New", monospace; }
+.monaprice-metrics { grid-template-columns: repeat(4, 1fr); }
 
 .news { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; margin-bottom: 10px; padding: 9px 12px; color: #111; border: 1px solid #d5a000; background: #ffffcc; }
 .news > span { color: #cc0000; font-weight: bold; }
@@ -185,6 +216,7 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px;
   .quote { margin-left: 28px; text-align: left; }
   .quote .change { display: inline-block; }
   .metrics { grid-template-columns: repeat(2, 1fr); }
+  .price-controls { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -208,6 +240,8 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px;
   .chart-wrap, .chart-empty { height: 250px; margin-inline: 8px; }
   .chart-plot { height: 205px; }
   .metrics { margin-inline: 8px; grid-template-columns: 1fr 1fr; }
+  .price-controls { grid-template-columns: 1fr; }
+  .price-controls > strong { padding-inline: 0; }
   .link-form { align-items: stretch; flex-direction: column; }
   .link-form input { width: 100%; }
   .account-head { align-items: flex-start; flex-direction: column; }

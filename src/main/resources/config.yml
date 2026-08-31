@@ -114,6 +114,8 @@ realtime:
   enabled: false
   endpoint: 'https://monakabu-live.duckdns.org/v1/ingest'
   server-id: monaka-main
+  # MonaPrice導入時、アイテム相場を同じRealtimeサイトへ公開します。
+  monaprice-enabled: true
   secret-environment-variable: MONAKABU_REALTIME_SECRET
   secret: ''
   allow-insecure-http: false
