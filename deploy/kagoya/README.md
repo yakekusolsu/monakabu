@@ -40,6 +40,10 @@ The value of `POSTGRES_VERSION` should match the major version displayed for
 the source Render database. A newer target major version is also supported by
 `pg_restore`, but matching versions makes rollback simpler.
 
+The database volume is mounted at `/var/lib/postgresql`, as required by the
+official PostgreSQL 18+ image's version-specific cluster layout. Do not change
+it back to `/var/lib/postgresql/data`.
+
 Validate the rendered Compose configuration without printing the private
 environment file:
 

@@ -10,7 +10,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # PostgreSQL 18+ stores clusters in a major-version-specific child
+      # directory. Mount the parent so future pg_upgrade operations do not
+      # cross a mount-point boundary. This also works with earlier images.
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -64,4 +67,3 @@ services:
 
 volumes:
   postgres-data:
-
