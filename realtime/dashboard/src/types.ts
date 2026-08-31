@@ -39,10 +39,20 @@ export interface MonaPriceState {
   capturedAt: string; sourceVersion: string; items: MonaPriceItemState[];
 }
 
+export interface MarketRankingEntry {
+  rank: number; playerName: string; profit: number; trades: number;
+}
+
+export interface MarketRanking {
+  seasonId: number | null; seasonNumber: number | null; finalized: boolean;
+  updatedAt: string; entries: MarketRankingEntry[];
+}
+
 export interface MarketState {
   currency: string; marketOpen: boolean; season: SeasonState | null;
   stocks: StockState[]; activeEvents: MarketNews[]; dailyReport: DailyMarketReport | null;
   monaPrice: MonaPriceState | null;
+  ranking: MarketRanking | null;
 }
 
 export interface RealtimeEvent { type: string; data: unknown; timestamp: string; }

@@ -121,6 +121,8 @@ realtime:
   allow-insecure-http: false
   dispatch-interval: 1s
   snapshot-interval: 60s
+  # サイトへ公開する現在シーズンのランキング人数（3～500）。
+  ranking-limit: 100
   request-timeout: 8s
   batch-size: 25
   outbox-retention-days: 7

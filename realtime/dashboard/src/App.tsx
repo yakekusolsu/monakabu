@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import type { DailyMarketReport, HistoryPoint, MarketNews, MarketState, MonaPriceItemState, MonaPriceState, RealtimeEvent, SeasonState, StockState, WebAccountResponse } from "./types";
+import type { DailyMarketReport, HistoryPoint, MarketNews, MarketRanking, MarketState, MonaPriceItemState, MonaPriceState, RealtimeEvent, SeasonState, StockState, WebAccountResponse } from "./types";
 
 const apiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 const wsUrl = ((import.meta.env.VITE_WS_URL as string | undefined) ?? apiUrl.replace(/^http/, "ws")).replace(/\/$/, "");
 const serverId = (import.meta.env.VITE_SERVER_ID as string | undefined) ?? "monaka-main";
-const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null, monaPrice: null };
+const emptyState: MarketState = { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null, monaPrice: null, ranking: null };
 const periods = ["1h", "6h", "24h", "7d"] as const;
 const periodLabels: Record<Period, string> = { "1h": "1時間", "6h": "6時間", "24h": "24時間", "7d": "7日" };
 type Period = typeof periods[number];
@@ -101,7 +101,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">{pricePage ? "物" : "株"}</span><div><strong>{pricePage ? "MonaPrice掲示板" : "MonaKabu掲示板"}</strong><small>MONAKA SERVER {pricePage ? "アイテム相場板" : "株価実況板"}</small></div></div>
-        <nav className="board-nav" aria-label="サイトメニュー"><a className={!pricePage ? "current" : ""} aria-current={!pricePage ? "page" : undefined} href="/">株式市場</a><a className={pricePage ? "current" : ""} aria-current={pricePage ? "page" : undefined} href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
+        <nav className="board-nav" aria-label="サイトメニュー"><a className={!pricePage ? "current" : ""} aria-current={!pricePage ? "page" : undefined} href="/">株式市場</a><a className={pricePage ? "current" : ""} aria-current={pricePage ? "page" : undefined} href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#ranking">ランキング</a><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
         <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
@@ -114,6 +114,8 @@ export default function App() {
         {market.activeEvents.length > 0 && <News events={market.activeEvents} stocks={market.stocks} />}
 
         {market.dailyReport && <DailyReport report={market.dailyReport} currency={market.currency} />}
+
+        <RankingBoard ranking={market.ranking} currency={market.currency} season={market.season} />
 
         <WebTrading market={market} selected={selected} />
 
@@ -355,6 +357,18 @@ function DailyReport({ report, currency }: { report: DailyMarketReport; currency
   </section>;
 }
 
+function RankingBoard({ ranking, currency, season }: { ranking: MarketRanking | null; currency: string; season: SeasonState | null }) {
+  const number = ranking?.seasonNumber ?? season?.number;
+  return <section className="ranking-board" id="ranking">
+    <div className="thread-title">【Season {number ?? "-"}】総損益ランキング</div>
+    <p className="ranking-note">{ranking?.finalized ? "シーズン最終順位です。" : "確定損益と現在保有株の含み損益を合計した暫定順位です。"} 株価更新に合わせて自動更新されます。</p>
+    {ranking?.entries.length ? <div className="ranking-scroll"><table className="ranking-table"><thead><tr><th>順位</th><th>プレイヤー</th><th>総損益</th><th>取引回数</th></tr></thead><tbody>
+      {ranking.entries.map((entry) => <tr key={`${entry.rank}-${entry.playerName}`} className={entry.rank <= 3 ? `ranking-top ranking-${entry.rank}` : ""}><td data-label="順位"><span className="ranking-medal">{entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `${entry.rank}位`}</span></td><th scope="row">{entry.playerName}</th><td data-label="総損益"><strong className={entry.profit >= 0 ? "positive" : "negative"}>{entry.profit >= 0 ? "+" : ""}{money(entry.profit)} {currency}</strong></td><td data-label="取引回数">{entry.trades.toLocaleString("ja-JP")}回</td></tr>)}
+    </tbody></table></div> : <div className="ranking-empty">{ranking ? "まだランキング対象の取引がありません。" : "MonaKabuからランキングデータが届くまでお待ちください。"}</div>}
+    {ranking && <p className="ranking-updated">集計：{dateTime(ranking.updatedAt)} / {ranking.entries.length}名を表示</p>}
+  </section>;
+}
+
 function WebTrading({ market, selected }: { market: MarketState; selected: StockState | null }) {
   const [token, setToken] = useState(() => window.localStorage.getItem("monakabu-web-token") ?? "");
   const [account, setAccount] = useState<WebAccountResponse | null>(null);
@@ -440,7 +454,7 @@ function ConfigurationError() { return <div className="configuration-error"><h1>
 function applyEvent(current: MarketState, event: RealtimeEvent): MarketState {
   if (event.type === "market.snapshot") {
     const snapshot = event.data as MarketState;
-    return { ...snapshot, dailyReport: snapshot.dailyReport ?? current.dailyReport ?? null, monaPrice: snapshot.monaPrice ?? current.monaPrice ?? null };
+    return { ...snapshot, dailyReport: snapshot.dailyReport ?? current.dailyReport ?? null, monaPrice: snapshot.monaPrice ?? current.monaPrice ?? null, ranking: snapshot.ranking ?? current.ranking ?? null };
   }
   if (event.type === "stock.price.changed") { const stock = event.data as StockState; return { ...current, stocks: [...current.stocks.filter((item) => item.id !== stock.id), stock].sort((a, b) => a.id.localeCompare(b.id)) }; }
   if (event.type === "season.started" || event.type === "season.ended") { const season = event.data as SeasonState; return { ...current, season, marketOpen: season.status === "OPEN" }; }

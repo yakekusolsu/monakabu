@@ -107,6 +107,25 @@ h1 { margin: 0; color: #800000; font-size: clamp(25px, 4vw, 36px); line-height: 
 .daily-report-table .daily-high { color: #cc0000; }
 .daily-report-table .daily-low { color: #0000cc; }
 
+.ranking-board { margin-bottom: 14px; border: 1px solid #999; background: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .08); }
+.ranking-board > .thread-title { margin: -1px -1px 0; background: #7a5b00; border-color: #594200; }
+.ranking-note { margin: 0; padding: 9px 12px; color: #555; border-bottom: 1px dotted #aaa; background: #ffffee; font-size: 12px; }
+.ranking-scroll { max-height: 520px; overflow: auto; }
+.ranking-table { width: 100%; border-collapse: collapse; font-family: "Courier New", "Yu Gothic UI", monospace; }
+.ranking-table th, .ranking-table td { padding: 10px 14px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+.ranking-table thead th { position: sticky; z-index: 1; top: 0; color: #fff; text-align: left; background: #777; font-size: 12px; }
+.ranking-table thead th:nth-child(n+3), .ranking-table tbody td:nth-child(n+3) { text-align: right; }
+.ranking-table tbody tr:nth-child(even) { background: #f3f3f3; }
+.ranking-table tbody tr:hover { background: #fffbdc; }
+.ranking-table tbody th { color: #008000; text-align: left; }
+.ranking-table .ranking-top { font-size: 16px; font-weight: bold; }
+.ranking-table .ranking-1 { background: #fff6bd; }
+.ranking-table .ranking-2 { background: #f1f1f1; }
+.ranking-table .ranking-3 { background: #f6e2ce; }
+.ranking-medal { display: inline-block; min-width: 52px; text-align: center; white-space: nowrap; }
+.ranking-updated { margin: 0; padding: 6px 12px; color: #666; text-align: right; border-top: 1px dotted #aaa; font-size: 11px; }
+.ranking-empty { display: grid; min-height: 110px; place-items: center; color: #666; }
+
 .web-trading { margin-bottom: 14px; border: 1px solid #999; background: #fff; }
 .web-trading > .thread-title { margin: -1px -1px 0; background: #45458a; border-color: #303066; }
 .link-box { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; padding: 16px 20px; }
@@ -289,6 +308,17 @@ footer { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px;
   .daily-report-table tbody th { grid-column: 1 / -1; background: #f3f3ef; }
   .daily-report-table tbody td { display: flex; justify-content: space-between; gap: 7px; text-align: right; white-space: normal; }
   .daily-report-table tbody td::before { color: #666; content: attr(data-label); font-size: 11px; font-weight: bold; }
+  .ranking-scroll { max-height: none; overflow: visible; }
+  .ranking-table, .ranking-table tbody { display: block; width: 100%; }
+  .ranking-table thead { display: none; }
+  .ranking-table tbody { padding: 7px; }
+  .ranking-table tbody tr { display: grid; grid-template-columns: 72px minmax(0, 1fr); margin-bottom: 7px; border: 1px solid #aaa; }
+  .ranking-table tbody td, .ranking-table tbody th { padding: 8px 10px; border-right: 0; }
+  .ranking-table tbody td:first-child { grid-row: 1 / 3; display: grid; place-items: center; }
+  .ranking-table tbody th { min-width: 0; overflow-wrap: anywhere; background: rgba(255, 255, 255, .55); }
+  .ranking-table tbody td:nth-child(n+3) { display: flex; justify-content: space-between; gap: 8px; text-align: right; }
+  .ranking-table tbody td:nth-child(n+3)::before { color: #666; content: attr(data-label); font-size: 11px; font-weight: bold; }
+  .ranking-medal { min-width: 0; font-size: 18px; }
   .link-form { align-items: stretch; flex-direction: column; }
   .link-form input { width: 100%; }
   .account-head { align-items: flex-start; flex-direction: column; }

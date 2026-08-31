@@ -1,6 +1,6 @@
 import pg from "pg";
 import { randomBytes } from "node:crypto";
-import type { DailyMarketReport, IngestEvent, MarketNews, MarketState, MonaPriceItemState, MonaPriceState, SeasonState, StockState, WebAccountSnapshot, WebIdentity, WebTradeOrder } from "./types.js";
+import type { DailyMarketReport, IngestEvent, MarketNews, MarketRanking, MarketState, MonaPriceItemState, MonaPriceState, SeasonState, StockState, WebAccountSnapshot, WebIdentity, WebTradeOrder } from "./types.js";
 
 const { Pool } = pg;
 
@@ -369,7 +369,7 @@ export class Store {
     );
     const row = result.rows[0];
     return row
-      ? { state: normalizeSnapshot(row.state, row.state.dailyReport ?? null, row.state.monaPrice ?? null), sequence: Number(row.last_sequence), updatedAt: row.updated_at.toISOString() }
+      ? { state: normalizeSnapshot(row.state, row.state.dailyReport ?? null, row.state.monaPrice ?? null, row.state.ranking ?? null), sequence: Number(row.last_sequence), updatedAt: row.updated_at.toISOString() }
       : { state: emptyState(), sequence: 0, updatedAt: null };
   }
 
@@ -421,7 +421,7 @@ export class Store {
       [serverId],
     );
     const row = result.rows[0];
-    return row ? { state: normalizeSnapshot(row.state, row.state.dailyReport ?? null, row.state.monaPrice ?? null), sequence: Number(row.last_sequence) } : { state: emptyState(), sequence: 0 };
+    return row ? { state: normalizeSnapshot(row.state, row.state.dailyReport ?? null, row.state.monaPrice ?? null, row.state.ranking ?? null), sequence: Number(row.last_sequence) } : { state: emptyState(), sequence: 0 };
   }
 
   private async upsertAccount(client: pg.PoolClient, serverId: string, playerUuid: string, account: WebAccountSnapshot): Promise<void> {
@@ -438,12 +438,12 @@ function normalizeNumbers(value: Record<string, unknown>): Record<string, unknow
 }
 
 export function emptyState(): MarketState {
-  return { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null, monaPrice: null };
+  return { currency: "MONA", marketOpen: false, season: null, stocks: [], activeEvents: [], dailyReport: null, monaPrice: null, ranking: null };
 }
 
 export function reduceState(previous: MarketState, event: IngestEvent): MarketState {
-  if (event.type === "market.snapshot") return normalizeSnapshot(event.data, previous.dailyReport ?? null, previous.monaPrice ?? null);
-  const state: MarketState = { ...structuredClone(previous), dailyReport: previous.dailyReport ?? null, monaPrice: previous.monaPrice ?? null };
+  if (event.type === "market.snapshot") return normalizeSnapshot(event.data, previous.dailyReport ?? null, previous.monaPrice ?? null, previous.ranking ?? null);
+  const state: MarketState = { ...structuredClone(previous), dailyReport: previous.dailyReport ?? null, monaPrice: previous.monaPrice ?? null, ranking: previous.ranking ?? null };
   if (event.type === "stock.price.changed") {
     const stock = event.data as StockState;
     state.stocks = [...state.stocks.filter((item) => item.id !== stock.id), stock]
@@ -465,7 +465,7 @@ export function reduceState(previous: MarketState, event: IngestEvent): MarketSt
   return state;
 }
 
-function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketReport | null, previousMonaPrice: MonaPriceState | null): MarketState {
+function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketReport | null, previousMonaPrice: MonaPriceState | null, previousRanking: MarketRanking | null): MarketState {
   const candidate = value as Partial<MarketState> | null;
   return {
     currency: typeof candidate?.currency === "string" ? candidate.currency : "MONA",
@@ -475,7 +475,28 @@ function normalizeSnapshot(value: unknown, previousDailyReport: DailyMarketRepor
     activeEvents: Array.isArray(candidate?.activeEvents) ? candidate.activeEvents : [],
     dailyReport: candidate?.dailyReport ?? previousDailyReport,
     monaPrice: candidate?.monaPrice ? normalizeMonaPrice(candidate.monaPrice) : previousMonaPrice,
+    ranking: candidate?.ranking ? normalizeRanking(candidate.ranking) : previousRanking,
   };
+}
+
+function normalizeRanking(value: unknown): MarketRanking | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<MarketRanking>;
+  if (!Number.isFinite(Date.parse(candidate.updatedAt ?? "")) || !Array.isArray(candidate.entries)) return null;
+  const entries = candidate.entries.slice(0, 500).flatMap((raw) => {
+    if (!raw || typeof raw !== "object") return [];
+    const entry = raw as unknown as Record<string, unknown>;
+    const rank = Number(entry.rank), profit = Number(entry.profit), trades = Number(entry.trades);
+    if (!Number.isSafeInteger(rank) || rank < 1 || typeof entry.playerName !== "string"
+      || entry.playerName.length < 1 || entry.playerName.length > 64 || !Number.isFinite(profit)
+      || !Number.isSafeInteger(trades) || trades < 0) return [];
+    return [{ rank, playerName: entry.playerName, profit, trades }];
+  }).sort((left, right) => left.rank - right.rank);
+  const seasonId = candidate.seasonId == null ? null : Number(candidate.seasonId);
+  const seasonNumber = candidate.seasonNumber == null ? null : Number(candidate.seasonNumber);
+  if ((seasonId != null && (!Number.isSafeInteger(seasonId) || seasonId < 1))
+    || (seasonNumber != null && (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1))) return null;
+  return { seasonId, seasonNumber, finalized: candidate.finalized === true, updatedAt: candidate.updatedAt!, entries };
 }
 
 function normalizeMonaPrice(value: unknown): MonaPriceState | null {

@@ -281,7 +281,7 @@ daily-report:
 
 ## KAGOYA / Vercel リアルタイムWeb市場
 
-`realtime/backend` はKAGOYA VPSで稼働するNode.js API、`realtime/dashboard` はVercel向けのReact画面です。株価がMonaKabuのDBへコミットされた後に署名付きイベントを送信し、KAGOYAのPostgreSQLへ保存してWebSocketでブラウザーへ配信します。Web公開データにプレイヤーUUID、名前、所持金、保有株、取引内容は含みません。Render構成も引き続き利用できます。
+`realtime/backend` はKAGOYA VPSで稼働するNode.js API、`realtime/dashboard` はVercel向けのReact画面です。株価がMonaKabuのDBへコミットされた後に署名付きイベントを送信し、KAGOYAのPostgreSQLへ保存してWebSocketでブラウザーへ配信します。株式市場ページでは現在シーズンの総損益ランキングも表示します。ランキングにはMinecraft上の最終プレイヤー名、順位、損益、取引回数だけを掲載し、プレイヤーUUID、所持金、保有株の内訳、取引内容は公開しません。Render構成も引き続き利用できます。
 
 ```yaml
 realtime:

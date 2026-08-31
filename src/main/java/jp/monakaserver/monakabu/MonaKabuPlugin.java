@@ -64,7 +64,7 @@ public final class MonaKabuPlugin extends JavaPlugin {
             getServer().getPluginManager().registerEvents(gui,this);getServer().getPluginManager().registerEvents(new PlayerListener(this,database,playerRepository,payments),this);
             holograms=new HologramService(this,configs,database,hologramRepository,stocks,market,seasons,messages);getServer().getPluginManager().registerEvents(holograms,this);holograms.restore();
             webhook=new WebhookService(this,configs,stocks,market,seasons);getServer().getPluginManager().registerEvents(webhook,this);
-            realtime=new RealtimeService(this,configs,database,realtimeOutboxRepository,stocks,marketEvents,seasons);getServer().getPluginManager().registerEvents(realtime,this);realtime.start();
+            realtime=new RealtimeService(this,configs,database,realtimeOutboxRepository,settlementRepository,stocks,marketEvents,seasons);getServer().getPluginManager().registerEvents(realtime,this);realtime.start();
             monaPriceRealtime=new MonaPriceRealtimeBridge(this,configs,realtime);monaPriceRealtime.start();
             webTrading=new WebTradingService(this,configs,realtime,trading,economy,messages);webTrading.start();
             dailyReports=new DailyReportService(this,configs,database,dailyReportRepository,stocks,messages,webhook,realtime);dailyReports.start();

@@ -8,11 +8,13 @@ import jp.monakaserver.monakabu.api.event.StockPriceChangeEvent;
 import jp.monakaserver.monakabu.config.ConfigManager;
 import jp.monakaserver.monakabu.database.DatabaseManager;
 import jp.monakaserver.monakabu.database.repository.RealtimeOutboxRepository;
+import jp.monakaserver.monakabu.database.repository.SettlementRepository;
 import jp.monakaserver.monakabu.market.MarketEventService;
 import jp.monakaserver.monakabu.market.StockRegistry;
 import jp.monakaserver.monakabu.model.ActiveMarketEvent;
 import jp.monakaserver.monakabu.model.DailyMarketReport;
 import jp.monakaserver.monakabu.model.DailyStockRange;
+import jp.monakaserver.monakabu.model.RankingEntry;
 import jp.monakaserver.monakabu.model.Season;
 import jp.monakaserver.monakabu.model.StockSnapshot;
 import jp.monakaserver.monakabu.season.SeasonService;
@@ -51,6 +53,7 @@ public final class RealtimeService implements Listener, AutoCloseable {
     private final ConfigManager configs;
     private final DatabaseManager database;
     private final RealtimeOutboxRepository outbox;
+    private final SettlementRepository rankings;
     private final StockRegistry stocks;
     private final MarketEventService marketEvents;
     private final SeasonService seasons;
@@ -71,12 +74,13 @@ public final class RealtimeService implements Listener, AutoCloseable {
     private BukkitTask cleanupTask;
 
     public RealtimeService(JavaPlugin plugin, ConfigManager configs, DatabaseManager database,
-                           RealtimeOutboxRepository outbox, StockRegistry stocks,
+                           RealtimeOutboxRepository outbox, SettlementRepository rankings, StockRegistry stocks,
                            MarketEventService marketEvents, SeasonService seasons) {
         this.plugin = plugin;
         this.configs = configs;
         this.database = database;
         this.outbox = outbox;
+        this.rankings = rankings;
         this.stocks = stocks;
         this.marketEvents = marketEvents;
         this.seasons = seasons;
@@ -158,10 +162,28 @@ public final class RealtimeService implements Listener, AutoCloseable {
 
     public void publishSnapshot() {
         if (!enabled) return;
-        Map<String, Object> data = new LinkedHashMap<>();
         Season season = seasons.current();
+        if (season == null) {
+            publishSnapshot(null, List.of());
+            return;
+        }
+        int limit = Math.max(3, Math.min(500, configs.config().getInt("realtime.ranking-limit", 100)));
+        database.read(connection -> season.status() == jp.monakaserver.monakabu.model.MarketStatus.CLOSED
+                        ? rankings.ranking(connection, season.id(), limit)
+                        : rankings.liveRanking(connection, season.id(), limit))
+                .thenAccept(entries -> publishSnapshot(season, entries))
+                .exceptionally(error -> {
+                    plugin.getLogger().log(Level.WARNING, "Realtime ranking snapshot could not be loaded", error);
+                    publishSnapshot(season, null);
+                    return null;
+                });
+    }
+
+    private void publishSnapshot(Season season, List<RankingEntry> rankingEntries) {
+        if (!enabled) return;
+        Map<String, Object> data = new LinkedHashMap<>();
         data.put("currency", configs.config().getString("currency.display-name", "MONA"));
-        data.put("marketOpen", seasons.isOpen());
+        data.put("marketOpen", season != null && season.status() == jp.monakaserver.monakabu.model.MarketStatus.OPEN);
         data.put("season", season == null ? null : seasonData(season));
         List<Map<String, Object>> stockList = new ArrayList<>();
         for (StockSnapshot stock : stocks.all()) stockList.add(stockData(stock));
@@ -169,6 +191,7 @@ public final class RealtimeService implements Listener, AutoCloseable {
         List<Map<String, Object>> activeEvents = new ArrayList<>();
         for (ActiveMarketEvent event : marketEvents.activeEvents()) activeEvents.add(marketEventData(event));
         data.put("activeEvents", activeEvents);
+        if (rankingEntries != null) data.put("ranking", rankingData(season, rankingEntries));
         publish("market.snapshot", data);
     }
 
@@ -299,6 +322,25 @@ public final class RealtimeService implements Listener, AutoCloseable {
             ranges.add(range);
         }
         data.put("stocks", ranges);
+        return data;
+    }
+
+    private Map<String, Object> rankingData(Season season, List<RankingEntry> entries) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("seasonId", season == null ? null : season.id());
+        data.put("seasonNumber", season == null ? null : season.number());
+        data.put("finalized", season != null && season.status() == jp.monakaserver.monakabu.model.MarketStatus.CLOSED);
+        data.put("updatedAt", Instant.now().toString());
+        List<Map<String, Object>> values = new ArrayList<>();
+        for (RankingEntry entry : entries) {
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("rank", entry.rank());
+            value.put("playerName", entry.playerName());
+            value.put("profit", entry.realizedProfit());
+            value.put("trades", entry.trades());
+            values.add(value);
+        }
+        data.put("entries", values);
         return data;
     }
 

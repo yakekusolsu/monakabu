@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { emptyState, reduceState } from "./store.js";
-import type { DailyMarketReport, IngestEvent, MonaPriceState, StockState } from "./types.js";
+import type { DailyMarketReport, IngestEvent, MarketRanking, MonaPriceState, StockState } from "./types.js";
 
 test("price event updates one stock without removing others", () => {
   const stock: StockState = {
@@ -63,4 +63,29 @@ test("MonaPrice state is reduced and survives MonaKabu market snapshots", () => 
   const afterPrice = reduceState(emptyState(), priceEvent);
   assert.deepEqual(afterPrice.monaPrice, monaPrice);
   assert.deepEqual(reduceState(afterPrice, marketEvent).monaPrice, monaPrice);
+});
+
+test("ranking is normalized and survives legacy market snapshots", () => {
+  const now = new Date().toISOString();
+  const ranking: MarketRanking = {
+    seasonId: 12, seasonNumber: 12, finalized: false, updatedAt: now,
+    entries: [
+      { rank: 2, playerName: "PlayerB", profit: -250, trades: 4 },
+      { rank: 1, playerName: "PlayerA", profit: 5400, trades: 9 },
+    ],
+  };
+  const rankingEvent: IngestEvent = {
+    schemaVersion: 1, eventId: "RT-RANKING", serverId: "main", type: "market.snapshot",
+    timestamp: now, pluginVersion: "1.8.0",
+    data: { currency: "MONA", marketOpen: true, season: null, stocks: [], activeEvents: [], ranking },
+  };
+  const legacySnapshot: IngestEvent = {
+    schemaVersion: 1, eventId: "RT-LEGACY", serverId: "main", type: "market.snapshot",
+    timestamp: now, pluginVersion: "1.7.0",
+    data: { currency: "MONA", marketOpen: true, season: null, stocks: [], activeEvents: [] },
+  };
+
+  const afterRanking = reduceState(emptyState(), rankingEvent);
+  assert.deepEqual(afterRanking.ranking?.entries.map((entry) => entry.rank), [1, 2]);
+  assert.deepEqual(reduceState(afterRanking, legacySnapshot).ranking, afterRanking.ranking);
 });

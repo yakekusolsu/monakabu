@@ -64,6 +64,7 @@ realtime:
   allow-insecure-http: false
   dispatch-interval: 1s
   snapshot-interval: 60s
+  ranking-limit: 100
   request-timeout: 8s
   batch-size: 25
   outbox-retention-days: 7
@@ -106,6 +107,8 @@ web-trading:
 プレイヤーはゲーム内で `/monakabu link` を実行し、サイトへ8文字のコードを入力します。コードは10分・1回限りです。連携解除は `/monakabu unlink`、サイト側の現在セッションだけを終了する場合はサイトの「ログアウト」を使用します。
 
 Paper側にGeyserまたはFloodgateがある場合、Bedrockプレイヤーにはコードをコピー可能なネイティブフォームも表示します。プロキシFloodgateからバックエンドAPIを利用する場合は、バックエンドにもFloodgateを導入し、`send-floodgate-data: true` と同一の `key.pem` を設定してください。APIが利用できない場合はチャット表示へ自動的にフォールバックします。
+
+株式市場トップページのランキングには、現在シーズンの確定損益と保有株の含み損益を合計した暫定順位を表示します。標準では上位100名を60秒ごとのスナップショットで更新し、シーズン終了後の閉場中は確定順位を表示します。公開されるプレイヤー情報はMinecraft上の最終プレイヤー名、順位、損益、取引回数だけで、UUID・残高・保有株の内訳は含みません。人数は `realtime.ranking-limit`（3～500）で変更できます。
 
 MonaPrice 1.1.0以降を同じPaperサーバーへ導入し、`realtime.monaprice-enabled: true` にすると、MonaPriceの価格更新イベントを同じOutboxから配信します。Vercelの `/prices` が専用ページです。MonaPriceを外した場合もMonaKabuの起動・株価配信には影響しません。
 
