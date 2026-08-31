@@ -264,7 +264,7 @@ app.get("/v1/monaprice", async (request, response) => {
     const snapshot = await store.snapshot(serverId);
     response.set("Cache-Control", "no-store").json({
       serverId,
-      monaPrice: snapshot.state.monaPrice,
+      monaPrice: snapshot.state.monaPrice ?? null,
       sequence: snapshot.sequence,
       updatedAt: snapshot.updatedAt,
     });

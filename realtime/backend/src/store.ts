@@ -369,7 +369,7 @@ export class Store {
     );
     const row = result.rows[0];
     return row
-      ? { state: row.state, sequence: Number(row.last_sequence), updatedAt: row.updated_at.toISOString() }
+      ? { state: normalizeSnapshot(row.state, row.state.dailyReport ?? null, row.state.monaPrice ?? null), sequence: Number(row.last_sequence), updatedAt: row.updated_at.toISOString() }
       : { state: emptyState(), sequence: 0, updatedAt: null };
   }
 
@@ -421,7 +421,7 @@ export class Store {
       [serverId],
     );
     const row = result.rows[0];
-    return row ? { state: row.state, sequence: Number(row.last_sequence) } : { state: emptyState(), sequence: 0 };
+    return row ? { state: normalizeSnapshot(row.state, row.state.dailyReport ?? null, row.state.monaPrice ?? null), sequence: Number(row.last_sequence) } : { state: emptyState(), sequence: 0 };
   }
 
   private async upsertAccount(client: pg.PoolClient, serverId: string, playerUuid: string, account: WebAccountSnapshot): Promise<void> {
