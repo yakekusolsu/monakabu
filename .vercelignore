@@ -1,0 +1,10 @@
+.git/
+.gradle/
+.idea/
+.vercel/
+.vercel-cli/
+build/
+run/
+**/node_modules/
+**/dist/
+*.dump
