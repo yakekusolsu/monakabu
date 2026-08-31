@@ -2,6 +2,9 @@
 
 MonaKabuの確定済み市場データをWebへ即時配信する付属サービスです。
 
+RenderではなくKAGOYA VPSへセルフホストする場合は、
+[`deploy/kagoya/README.md`](../deploy/kagoya/README.md) のDocker Compose移行手順を使用してください。
+
 ```text
 Paper / MonaKabu → HTTPS + HMAC → Render API / PostgreSQL → WebSocket → Vercel Dashboard
 ```

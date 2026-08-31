@@ -7,6 +7,8 @@ run/
 **/dist/
 **/.env
 **/.env.local
+deploy/**/backups/
+*.dump
 *.tsbuildinfo
 .vercel/
 .vercel-cli/

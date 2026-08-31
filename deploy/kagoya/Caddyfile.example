@@ -1,0 +1,6 @@
+# Replace api.example.jp with the A-record directed to the KAGOYA VPS.
+api.example.jp {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:10000
+}
+
