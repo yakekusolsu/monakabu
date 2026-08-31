@@ -101,7 +101,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><span className="brand-mark">{pricePage ? "物" : "株"}</span><div><strong>{pricePage ? "MonaPrice掲示板" : "MonaKabu掲示板"}</strong><small>MONAKA SERVER {pricePage ? "アイテム相場板" : "株価実況板"}</small></div></div>
-        <nav className="board-nav" aria-label="サイトメニュー"><a href="/">株式市場</a><a href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
+        <nav className="board-nav" aria-label="サイトメニュー"><a className={!pricePage ? "current" : ""} aria-current={!pricePage ? "page" : undefined} href="/">株式市場</a><a className={pricePage ? "current" : ""} aria-current={pricePage ? "page" : undefined} href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
         <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
@@ -157,7 +157,7 @@ function MonaPricePage({ state }: { state: MonaPriceState | null }) {
   const [period, setPeriod] = useState<Period>("24h");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const pageSize = 50;
+  const pageSize = 30;
 
   useEffect(() => {
     document.title = "MonaPrice掲示板 - MONAKA SERVERアイテム相場";
@@ -245,7 +245,7 @@ function MonaPricePage({ state }: { state: MonaPriceState | null }) {
 
 function MonaPriceRow({ item, currency, selected, onClick }: { item: MonaPriceItemState; currency: string; selected: boolean; onClick: () => void }) {
   return <tr className={selected ? "selected" : ""} onClick={onClick} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onClick(); } }}>
-    <th><strong>{item.displayName}</strong><small>{item.id} / {item.categoryName}</small></th><td>{money(item.price)} <small>{currency}</small></td><td className="daily-high">{money(item.buyPrice)}</td><td className="daily-low">{money(item.sellPrice)}</td><td><Change value={item.changePercent} /></td><td><span className="volume-buy">買 {money(item.buyVolume)}</span><span className="volume-sell">売 {money(item.sellVolume)}</span></td>
+    <th><strong>{item.displayName}</strong><small>{item.id} / {item.categoryName}</small></th><td data-label="市場価格"><b>{money(item.price)}</b> <small>{currency}</small></td><td data-label="購入価格" className="daily-high">{money(item.buyPrice)}</td><td data-label="売却価格" className="daily-low">{money(item.sellPrice)}</td><td data-label="前回比"><Change value={item.changePercent} /></td><td data-label="売買量"><span className="volume-buy">買 {money(item.buyVolume)}</span><span className="volume-sell">売 {money(item.sellVolume)}</span></td>
   </tr>;
 }
 
@@ -263,6 +263,7 @@ function StockCard({ index, stock, currency, selected, onClick }: { index: numbe
     <div className="post-body"><div className="stock-title"><span className="ticker">銘柄コード：{stock.symbol}</span>{stock.halted && <span className="halted">取引停止中</span>}</div>
       <div className="card-price"><strong>{money(stock.price)}</strong><span>{currency}</span></div>
       <Change value={stock.changePercent} /><span className="stock-comment">　{stock.changePercent >= 0 ? "上がってるぞ(ﾟ∀ﾟ)" : "下がってる…(´・ω・｀)"}</span>
+      <div className="stock-quick"><span>高値 <b>{money(stock.dailyHigh)}</b></span><span>安値 <b>{money(stock.dailyLow)}</b></span><span>気配 <b>{trendLabel(stock.trend)}</b></span></div>
     </div>
   </button>;
 }
@@ -344,10 +345,10 @@ function DailyReport({ report, currency }: { report: DailyMarketReport; currency
         <thead><tr><th>銘柄</th><th>現在値</th><th>高値</th><th>安値</th><th>値幅</th></tr></thead>
         <tbody>{report.stocks.map((stock) => <tr key={stock.stockId}>
           <th><strong>{stock.symbol}</strong><small>{plain(stock.displayName)}</small></th>
-          <td>{money(stock.currentPrice)} <small>{currency}</small></td>
-          <td className="daily-high">{money(stock.dailyHigh)}</td>
-          <td className="daily-low">{money(stock.dailyLow)}</td>
-          <td><strong>{money(stock.range)}</strong> <span>({stock.rangePercent.toFixed(2)}%)</span></td>
+          <td data-label="現在値">{money(stock.currentPrice)} <small>{currency}</small></td>
+          <td data-label="高値" className="daily-high">{money(stock.dailyHigh)}</td>
+          <td data-label="安値" className="daily-low">{money(stock.dailyLow)}</td>
+          <td data-label="値幅"><strong>{money(stock.range)}</strong> <span>({stock.rangePercent.toFixed(2)}%)</span></td>
         </tr>)}</tbody>
       </table>
     </div>
