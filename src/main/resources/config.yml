@@ -108,11 +108,11 @@ webhook:
   chart-points: 32
   chart-only-when-open: true
 
-# Render等の中継APIへ、公開可能な市場データだけを署名して送信します。
+# 中継APIへ、公開可能な市場データだけを署名して送信します。
 # 秘密鍵はconfig.ymlへ直接書かず、原則として環境変数へ設定してください。
 realtime:
   enabled: false
-  endpoint: 'https://your-monakabu-api.onrender.com/v1/ingest'
+  endpoint: 'https://monakabu-live.duckdns.org/v1/ingest'
   server-id: monaka-main
   secret-environment-variable: MONAKABU_REALTIME_SECRET
   secret: ''
@@ -131,6 +131,8 @@ realtime:
 # /monakabu link でサイトと連携し、オフライン中も注文を処理します。
 web-trading:
   enabled: true
+  # /monakabu link で表示する公開サイト。Bedrockフォームにも使用します。
+  site-url: 'https://monakabu-realtime-dashboard.vercel.app/'
   link-code-lifetime: 10m
   order-poll-interval: 2s
   max-shares-per-order: 1000

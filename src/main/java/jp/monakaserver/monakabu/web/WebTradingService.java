@@ -12,9 +12,13 @@ import jp.monakaserver.monakabu.realtime.RealtimeService;
 import jp.monakaserver.monakabu.trading.TradingService;
 import jp.monakaserver.monakabu.util.DurationParser;
 import jp.monakaserver.monakabu.util.MainThread;
+import jp.monakaserver.monakabu.web.bedrock.BedrockLinkPresenter;
+import jp.monakaserver.monakabu.web.bedrock.BedrockLinkPresenters;
+import java.net.URI;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,6 +42,7 @@ public final class WebTradingService implements AutoCloseable {
     private final TradingService trading;
     private final EconomyService economy;
     private final MessageService messages;
+    private final BedrockLinkPresenter bedrockLinks;
     private final SecureRandom random = new SecureRandom();
     private final AtomicBoolean polling = new AtomicBoolean();
     private final Map<UUID, Long> lastLinkRequest = new ConcurrentHashMap<>();
@@ -52,6 +57,7 @@ public final class WebTradingService implements AutoCloseable {
         this.trading = trading;
         this.economy = economy;
         this.messages = messages;
+        this.bedrockLinks = BedrockLinkPresenters.detect(plugin);
     }
 
     public void start() {
@@ -109,6 +115,33 @@ public final class WebTradingService implements AutoCloseable {
                     plugin.getLogger().log(Level.WARNING, "Web unlink failed for " + player.getUniqueId(), error);
                     return false;
                 });
+    }
+
+    /** Must be called on the Paper main thread after a link code was created. */
+    public boolean showBedrockLink(Player player, LinkResult result) {
+        if (!result.success() || result.expiresAt() == null) return false;
+        String timezoneName = configs.config().getString("timezone", "Asia/Tokyo");
+        ZoneId timezone;
+        try {
+            timezone = ZoneId.of(timezoneName);
+        } catch (RuntimeException ignored) {
+            timezone = ZoneId.of("Asia/Tokyo");
+        }
+        return bedrockLinks.present(player, siteUrl(), result.code(), result.expiresAt(), timezone);
+    }
+
+    public String siteUrl() {
+        String fallback = "https://monakabu-realtime-dashboard.vercel.app/";
+        String configured = configs.config().getString("web-trading.site-url", fallback).trim();
+        try {
+            URI uri = URI.create(configured);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
+                    || configured.indexOf('\'') >= 0 || configured.indexOf('<') >= 0
+                    || configured.indexOf('>') >= 0) return fallback;
+            return uri.toASCIIString();
+        } catch (IllegalArgumentException ignored) {
+            return fallback;
+        }
     }
 
     private void poll() {

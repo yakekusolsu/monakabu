@@ -2,14 +2,14 @@
 
 MonaKabuの確定済み市場データをWebへ即時配信する付属サービスです。
 
-RenderではなくKAGOYA VPSへセルフホストする場合は、
-[`deploy/kagoya/README.md`](../deploy/kagoya/README.md) のDocker Compose移行手順を使用してください。
+現在の本番構成はKAGOYA VPSです。セットアップと移行には
+[`deploy/kagoya/README.md`](../deploy/kagoya/README.md) のDocker Compose手順を使用してください。
 
 ```text
-Paper / MonaKabu → HTTPS + HMAC → Render API / PostgreSQL → WebSocket → Vercel Dashboard
+Paper / MonaKabu → HTTPS + HMAC → KAGOYA API / PostgreSQL → WebSocket → Vercel Dashboard
 ```
 
-プラグインはMinecraftサーバー側で待受ポートを開きません。Renderへの外向きHTTPS通信だけを使います。価格生成が標準の5分間隔なら、価格は5分ごとに変わり、その確定結果が即時配信されます。スナップショットは標準60秒間隔で状態を照合します。
+プラグインはMinecraftサーバー側で待受ポートを開きません。KAGOYA APIへの外向きHTTPS通信だけを使います。価格生成が標準の5分間隔なら、価格は5分ごとに変わり、その確定結果が即時配信されます。スナップショットは標準60秒間隔で状態を照合します。
 
 ## 1. 秘密鍵を作る
 
@@ -21,24 +21,15 @@ PowerShell:
 
 出力を安全な場所に保管します。Git、`config.yml`、Vercelの `VITE_` 変数には保存しないでください。
 
-## 2. RenderへAPIとPostgreSQLを作る
+## 2. KAGOYAへAPIとPostgreSQLを作る
 
-1. このディレクトリを含むMonaKabuリポジトリをGitHub等へpushします。
-2. Renderで Blueprint を作成し、リポジトリ直下の `render.yaml` を読み込ませます。
-3. Blueprint作成画面で `MONAKABU_SHARED_SECRET` を求められたら、手順1の値を入力します。
-4. `MONAKABU_SERVER_ID` はプラグインの `realtime.server-id` と同じ値にします。
-5. 最初は `ALLOWED_ORIGINS=http://localhost:5173` とし、Vercel URL確定後に更新します。
-6. `https://<Renderドメイン>/health` が `{"status":"ok"...}` を返すことを確認します。
+1. [`deploy/kagoya/README.md`](../deploy/kagoya/README.md) に従い、Docker ComposeでAPIとPostgreSQLを起動します。
+2. `MONAKABU_SHARED_SECRET` に手順1で作成した秘密鍵を設定します。
+3. `MONAKABU_SERVER_ID` はプラグインの `realtime.server-id` と同じ値にします。
+4. `ALLOWED_ORIGINS` にVercelの本番URLを設定します。
+5. `https://monakabu-live.duckdns.org/health` が `{"status":"ok"...}` を返すことを確認します。
 
-Renderを手動作成する場合の設定:
-
-- Root Directory: `realtime/backend`
-- Runtime: Docker
-- Health Check Path: `/health`
-- PostgreSQLを一つ作成し、その内部接続URLを `DATABASE_URL` に指定
-- `DATABASE_SSL=false`（Render内部接続の場合）
-- Blueprintは意図しない課金を避けるため初期値を無料プランにしています。動作確認後、常時WebSocket接続を維持する本番運用ではWeb ServiceとPostgreSQLを有料プランへ変更してください。
-- Web Serviceは1インスタンスで運用してください。複数インスタンスへ拡張する場合はRedis等の共有Pub/Subを追加してください。
+Render用の `render.yaml` も互換構成として残していますが、本番環境はKAGOYAを使用します。
 
 ## 3. Vercelへ画面を作る
 
@@ -48,12 +39,12 @@ Renderを手動作成する場合の設定:
 4. 次の環境変数を設定してデプロイします。
 
 ```text
-VITE_API_URL=https://<Renderドメイン>
-VITE_WS_URL=wss://<Renderドメイン>
+VITE_API_URL=https://monakabu-live.duckdns.org
+VITE_WS_URL=wss://monakabu-live.duckdns.org
 VITE_SERVER_ID=monaka-main
 ```
 
-5. Renderの `ALLOWED_ORIGINS` を、末尾スラッシュなしのVercel本番URLへ変更します。複数指定はカンマで区切ります。
+5. KAGOYA APIの `ALLOWED_ORIGINS` を、末尾スラッシュなしのVercel本番URLへ変更します。複数指定はカンマで区切ります。
 
 ```text
 https://your-dashboard.vercel.app,https://stocks.example.jp
@@ -66,7 +57,7 @@ https://your-dashboard.vercel.app,https://stocks.example.jp
 ```yaml
 realtime:
   enabled: true
-  endpoint: 'https://<Renderドメイン>/v1/ingest'
+  endpoint: 'https://monakabu-live.duckdns.org/v1/ingest'
   server-id: monaka-main
   secret-environment-variable: MONAKABU_REALTIME_SECRET
   secret: ''
@@ -106,12 +97,15 @@ Web売買を有効にする場合は同じ `config.yml` に次を追加します
 ```yaml
 web-trading:
   enabled: true
+  site-url: 'https://monakabu-realtime-dashboard.vercel.app/'
   link-code-lifetime: 10m
   order-poll-interval: 2s
   max-shares-per-order: 1000
 ```
 
 プレイヤーはゲーム内で `/monakabu link` を実行し、サイトへ8文字のコードを入力します。コードは10分・1回限りです。連携解除は `/monakabu unlink`、サイト側の現在セッションだけを終了する場合はサイトの「ログアウト」を使用します。
+
+Paper側にGeyserまたはFloodgateがある場合、Bedrockプレイヤーにはコードをコピー可能なネイティブフォームも表示します。プロキシFloodgateからバックエンドAPIを利用する場合は、バックエンドにもFloodgateを導入し、`send-floodgate-data: true` と同一の `key.pem` を設定してください。APIが利用できない場合はチャット表示へ自動的にフォールバックします。
 
 ## API
 
@@ -133,7 +127,7 @@ web-trading:
 - `X-MonaKabu-Signature`: `sha256=HMAC_SHA256(secret, timestamp + "." + rawBody)`
 - `X-MonaKabu-Server`: server ID
 
-タイムスタンプの許容差は標準300秒です。MinecraftホストとRenderの時計をNTPで同期してください。
+タイムスタンプの許容差は標準300秒です。MinecraftホストとKAGOYA VPSの時計をNTPで同期してください。
 
 認証済みWeb売買:
 
@@ -143,14 +137,14 @@ web-trading:
 - `POST /v1/orders`
 - `POST /v1/auth/logout`
 
-`/v1/account`、`/v1/orders`、`/v1/account/refresh`、`/v1/auth/logout` は `Authorization: Bearer <token>` が必要です。セッショントークンは標準14日で失効します。Render環境変数 `WEB_SESSION_DAYS` で1～90日、`WEB_MAX_SHARES_PER_ORDER` でWeb注文1件の上限を変更できます。
+`/v1/account`、`/v1/orders`、`/v1/account/refresh`、`/v1/auth/logout` は `Authorization: Bearer <token>` が必要です。セッショントークンは標準14日で失効します。API環境変数 `WEB_SESSION_DAYS` で1～90日、`WEB_MAX_SHARES_PER_ORDER` でWeb注文1件の上限を変更できます。
 
 ## 障害復旧と重複防止
 
 - 配信イベントは送信前にプラグインDBの `realtime_outbox` へ永続化されます。
 - HTTP 2xxを確認してから `delivered_at` を設定します。
 - 応答が不明な場合は指数バックオフで再送します。
-- Renderは `eventId` の一意制約で同じイベントを一度だけ状態へ適用します。
+- APIは `eventId` の一意制約で同じイベントを一度だけ状態へ適用します。
 - WebSocket再接続時は完全スナップショットを取得し、欠落イベントを補正します。
 - 署名は受信した生バイト列に対して検証し、古いタイムスタンプを拒否します。
 - Web注文は一意な注文UUIDをそのままプラグイン取引IDへ使用し、結果送信が失敗して再取得されても二重処理しません。

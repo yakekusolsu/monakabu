@@ -279,20 +279,20 @@ daily-report:
 
 設定タイムゾーンの毎日21時15分以降に、その日の各銘柄の現在値・高値・安値・値幅・値幅率をゲーム内、Discord Webhook、リアルタイムサイトへ一度だけ配信します。`daily_reports.report_date`の主キーで、再起動やスケジューラの重複実行による同日二重配信を防止します。
 
-## Render / Vercel リアルタイムWeb市場
+## KAGOYA / Vercel リアルタイムWeb市場
 
-`realtime/backend` はRender向けのNode.js API、`realtime/dashboard` はVercel向けのReact画面です。株価がMonaKabuのDBへコミットされた後に署名付きイベントを送信し、RenderがPostgreSQLへ保存してWebSocketでブラウザーへ配信します。Web公開データにプレイヤーUUID、名前、所持金、保有株、取引内容は含みません。
+`realtime/backend` はKAGOYA VPSで稼働するNode.js API、`realtime/dashboard` はVercel向けのReact画面です。株価がMonaKabuのDBへコミットされた後に署名付きイベントを送信し、KAGOYAのPostgreSQLへ保存してWebSocketでブラウザーへ配信します。Web公開データにプレイヤーUUID、名前、所持金、保有株、取引内容は含みません。Render構成も引き続き利用できます。
 
 ```yaml
 realtime:
   enabled: true
-  endpoint: 'https://your-monakabu-api.onrender.com/v1/ingest'
+  endpoint: 'https://monakabu-live.duckdns.org/v1/ingest'
   server-id: monaka-main
   secret-environment-variable: MONAKABU_REALTIME_SECRET
   snapshot-interval: 60s
 ```
 
-秘密鍵は32文字以上とし、MinecraftサーバーとRenderの `MONAKABU_SHARED_SECRET` に同じ値を設定します。送信前にイベントを `realtime_outbox` へ保存するため、Render停止中やネットワーク障害中も市場処理を止めず、復旧後に順番に再送します。Render側では `(server_id, event_id)` の一意制約で再送を重複反映しません。
+秘密鍵は32文字以上とし、MinecraftサーバーとAPIの `MONAKABU_SHARED_SECRET` に同じ値を設定します。送信前にイベントを `realtime_outbox` へ保存するため、API停止中やネットワーク障害中も市場処理を止めず、復旧後に順番に再送します。API側では `(server_id, event_id)` の一意制約で再送を重複反映しません。
 
 完全なデプロイ手順、環境変数、ローカル実行方法は [`realtime/README.md`](realtime/README.md) を参照してください。
 
@@ -301,6 +301,7 @@ realtime:
 ```yaml
 web-trading:
   enabled: true
+  site-url: 'https://monakabu-realtime-dashboard.vercel.app/'
   link-code-lifetime: 10m
   order-poll-interval: 2s
   max-shares-per-order: 1000
@@ -308,9 +309,11 @@ web-trading:
 
 ゲーム内で `/monakabu link` を実行すると、8文字のコードが表示されます。公開サイトの「Minecraft連携・Web売買」へ10分以内に入力してください。コードは1回使用すると失効し、サイトセッションは標準14日間有効です。`/monakabu unlink` は発行中コードと全セッションを失効し、未処理注文を取り消します。
 
-サイトの注文はRender PostgreSQLのキューへ入り、プラグインが外向きHTTPSで取得してVaultとMonaKabu DBへ反映します。Minecraftサーバー停止中は注文が保留され、起動後に処理されます。同じWeb注文UUIDをMonaKabuの取引IDに固定するため、タイムアウトや再取得が起きても二重売買しません。購入時は処理直前のVault残高を再検証し、売却代金は既存の冪等なPending Payment経由でオフライン入金します。
+GeyserまたはFloodgateをPaper側で検出すると、BedrockプレイヤーにはサイトURL、コード、有効期限をネイティブフォームでも表示します。コードは入力欄へ初期設定されるため、モバイル版でも長押しでコピーできます。フォームを利用できない構成では同じコードを通常チャットへ表示して継続します。Floodgateをプロキシへ置く構成でフォームを使う場合は、バックエンドPaperにもFloodgateを導入し、プロキシの `send-floodgate-data: true` と共通の `key.pem` を設定してください。MonaKabuはVault残高と一致するBukkit/Floodgate UUIDを維持し、XUIDを別口座として作りません。
 
-公開市場WebSocketにはプレイヤー情報を含めません。UUID、残高、保有株、注文履歴はBearerセッション認証済みの `/v1/account` だけが返します。ワンタイムコードとセッショントークンはRender DBにSHA-256ハッシュで保存され、平文では保存しません。
+サイトの注文はRealtime PostgreSQLのキューへ入り、プラグインが外向きHTTPSで取得してVaultとMonaKabu DBへ反映します。Minecraftサーバー停止中は注文が保留され、起動後に処理されます。同じWeb注文UUIDをMonaKabuの取引IDに固定するため、タイムアウトや再取得が起きても二重売買しません。購入時は処理直前のVault残高を再検証し、売却代金は既存の冪等なPending Payment経由でオフライン入金します。
+
+公開市場WebSocketにはプレイヤー情報を含めません。UUID、残高、保有株、注文履歴はBearerセッション認証済みの `/v1/account` だけが返します。ワンタイムコードとセッショントークンはRealtime DBにSHA-256ハッシュで保存され、平文では保存しません。
 
 ## 外部API
 
@@ -332,7 +335,8 @@ api.isMarketOpen();
 - MySQL接続失敗: ホスト、DB名、権限、ファイアウォールを確認してください。
 - `REVIEW_REQUIRED`: Vault処理境界でサーバープロセスが停止した安全保留です。DBの取引・支払IDと経済プラグインのログを照合してください。自動再試行で重複入出金させないための状態です。
 - 詳細価格履歴: `market.history-retention-detailed-days` より古いデータは定期削除対象です。長期集約を追加する場合も `stock_prices(season_id, stock_id, recorded_at)` を基準にしてください。
-- Web画面が更新されない: `realtime.enabled`、Renderの `/health`、両側の共有秘密鍵、Renderの `ALLOWED_ORIGINS`、`realtime_outbox.last_error` を確認してください。
+- Web画面が更新されない: `realtime.enabled`、APIの `/health`、両側の共有秘密鍵、APIの `ALLOWED_ORIGINS`、`realtime_outbox.last_error` を確認してください。
+- Bedrockフォームが出ない: Paper側にGeyserまたはFloodgate APIがあるか確認してください。プロキシ構成ではFloodgateの `send-floodgate-data`、バックエンドの `key.pem`、起動ログの `Bedrock link forms enabled` を確認してください。
 - バックアップ: SQLiteではサーバー停止中に `monakabu.db` を保存してください。MySQLでは整合性のあるスナップショットを使用してください。
 
 公開前にステージングサーバーで、利用中のVault経済プロバイダがオフラインプレイヤーへの入金を正しく扱うこと、権限、シーズン時刻、報酬コマンドを確認してください。
