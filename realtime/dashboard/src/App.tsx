@@ -101,14 +101,14 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand"><span className="brand-mark">{pricePage ? "物" : "株"}</span><div><strong>{pricePage ? "MonaPrice掲示板" : "MonaKabu掲示板"}</strong><small>MONAKA SERVER {pricePage ? "アイテム相場板" : "株価実況板"}</small></div></div>
+        <div className="brand"><img className="brand-mark" src="/monaka.png" alt="" width="48" height="48" /><div><strong>{pricePage ? "MonaPrice" : "MonaKabu"}</strong><small>MONAKA SERVER / {pricePage ? "ITEM MARKET" : "STOCK MARKET"}</small></div></div>
         <nav className="board-nav" aria-label="サイトメニュー"><a className={!pricePage ? "current" : ""} aria-current={!pricePage ? "page" : undefined} href="/">株式市場</a><a className={pricePage ? "current" : ""} aria-current={pricePage ? "page" : undefined} href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#ranking">ランキング</a><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
         <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
       <main>{pricePage ? <MonaPricePage state={market.monaPrice} /> : <>
         <section className="market-hero">
-          <div className="board-intro"><p className="eyebrow">■ 株式市場実況板</p><h1>MonaKabu＠MONAKA SERVER</h1><p className="lead">Minecraft内の株価を実況する掲示板です。値動きは自動更新されます。<br />煽り・買い占め・狼狽売りはほどほどに。</p></div>
+          <div className="board-intro"><p className="eyebrow">■ MONAKA ECONOMY / 株式市場</p><h1>のんびり見守る、<br />MonaKabu。</h1><p className="lead">Minecraft内の株価をリアルタイムでお届けします。<br />買うときも、売るときも、焦らず自分のペースで。</p></div>
           <MarketClock season={market.season} open={market.marketOpen} />
         </section>
 
@@ -163,8 +163,8 @@ function MonaPricePage({ state }: { state: MonaPriceState | null }) {
   const pageSize = 30;
 
   useEffect(() => {
-    document.title = "MonaPrice掲示板 - MONAKA SERVERアイテム相場";
-    return () => { document.title = "MonaKabu掲示板 - MONAKA SERVER株価実況板"; };
+    document.title = "MonaPrice | MONAKA SERVER";
+    return () => { document.title = "MonaKabu | MONAKA SERVER"; };
   }, []);
 
   useEffect(() => {
@@ -211,13 +211,13 @@ function MonaPricePage({ state }: { state: MonaPriceState | null }) {
   }, [period, selected?.id, selected?.updatedAt]);
 
   if (!state) return <>
-    <section className="market-hero"><div className="board-intro"><p className="eyebrow">■ アイテム相場実況板</p><h1>MonaPrice＠MONAKA SERVER</h1><p className="lead">Minecraft内の需要と供給を反映したアイテム価格を公開します。<br />MonaPriceから最初の相場情報が届くまでお待ちください。</p></div></section>
+    <section className="market-hero"><div className="board-intro"><p className="eyebrow">■ MONAKA ECONOMY / アイテム相場</p><h1>暮らしの値段を、<br />MonaPriceで。</h1><p className="lead">Minecraft内の需要と供給を反映したアイテム価格を公開します。<br />MonaPriceから最初の相場情報が届くまでお待ちください。</p></div></section>
     <div className="empty monaprice-waiting">MonaPrice連携データを待っています…</div>
   </>;
 
   return <>
     <section className="market-hero monaprice-hero">
-      <div className="board-intro"><p className="eyebrow">■ アイテム相場実況板</p><h1>MonaPrice＠MONAKA SERVER</h1><p className="lead">需要・供給と市場イベントで変動するMinecraftアイテムの参考相場です。<br />ショップでの実際の取引条件は各ショップの表示を確認してください。</p></div>
+      <div className="board-intro"><p className="eyebrow">■ MONAKA ECONOMY / アイテム相場</p><h1>暮らしの値段を、<br />MonaPriceで。</h1><p className="lead">需要・供給と市場イベントで変動するMinecraftアイテムの参考相場です。<br />ショップでの実際の取引条件は各ショップの表示を確認してください。</p></div>
       <div className="market-clock price-index"><div><span className="market-dot open" /><strong>物価指数</strong></div><p>全{state.items.length.toLocaleString("ja-JP")}商品</p><time>{money(state.index.current)} <small>INDEX</small></time><Change value={state.index.changePercent} /><MonaPriceCountdown state={state} /></div>
     </section>
 
