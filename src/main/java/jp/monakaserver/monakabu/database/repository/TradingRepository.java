@@ -78,8 +78,12 @@ public final class TradingRepository {
                 .orElse(new PortfolioPosition(uuid, stockId, seasonId, 0, Money.ZERO));
         // Subtract first so oversized requests cannot overflow before Vault is charged.
         if (shares <= 0 || shares > ShareLimits.remaining(maxShares, current.shares())) throw new IllegalStateException("LIMIT_SHARES");
-        BigDecimal investedNow = portfolioValue(connection, uuid, seasonId);
-        if (investedNow.add(gross).compareTo(maxInvestment) > 0) throw new IllegalStateException("LIMIT_INVESTMENT");
+        if (maxInvestment.signum() < 0) throw new IllegalArgumentException("Investment limit must be zero or positive");
+        // Zero disables the investment cap, not the later Vault balance check.
+        if (maxInvestment.signum() > 0) {
+            BigDecimal investedNow = portfolioValue(connection, uuid, seasonId);
+            if (investedNow.add(gross).compareTo(maxInvestment) > 0) throw new IllegalStateException("LIMIT_INVESTMENT");
+        }
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO transactions(transaction_id,uuid,stock_id,type,shares,price,gross,fee,tax,net,occurred_at,season_id,status,metadata) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             bindTransaction(statement, txId, uuid, stockId, TransactionType.BUY, shares, price, gross, fee, Money.ZERO,
                     total, seasonId, TransactionStatus.PREPARED, "buy-intent");

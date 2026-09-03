@@ -57,6 +57,37 @@ class DatabaseIntegrationTest {
                 0, BigDecimal.valueOf(1000))).hasMessage("LIMIT_INVESTMENT");
     }
 
+    @Test void zeroInvestmentLimitAllowsMoreThanTenMillionAndFurtherPurchases() throws Exception {
+        TradingRepository trades = new TradingRepository();
+        BigDecimal gross = BigDecimal.valueOf(15_000_000);
+        BigDecimal fee = BigDecimal.valueOf(150_000);
+        var buy = trades.prepareBuy(connection, "BUY-UNCAPPED", player, "mona", 1,
+                10_000, BigDecimal.valueOf(1500), gross, fee, gross.add(fee), 0, BigDecimal.ZERO);
+        assertThat(buy.net()).isEqualByComparingTo("15150000");
+        trades.markBuyEconomyApplied(connection, buy.transactionId());
+        assertThat(trades.completeBuy(connection, buy)).isEqualTo(10_000);
+        assertThat(trades.completeBuy(connection, buy)).isEqualTo(10_000);
+        // An existing portfolio above the previous limit must not block further buys.
+        var next = trades.prepareBuy(connection, "BUY-UNCAPPED-NEXT", player, "mona", 1,
+                1, BigDecimal.valueOf(1500), BigDecimal.valueOf(1500), BigDecimal.valueOf(15),
+                BigDecimal.valueOf(1515), 0, BigDecimal.ZERO);
+        assertThat(trades.completeBuy(connection, next)).isEqualTo(10_001);
+        assertThat(count("transactions")).isEqualTo(2);
+    }
+
+    @Test void unlimitedInvestmentStillEnforcesShareCap() {
+        assertThatThrownBy(() -> new TradingRepository().prepareBuy(connection, "BUY-SHARE-CAP", player,
+                "mona", 1, 1001, BigDecimal.ONE, BigDecimal.valueOf(1001), BigDecimal.ZERO,
+                BigDecimal.valueOf(1001), 1000, BigDecimal.ZERO)).hasMessage("LIMIT_SHARES");
+    }
+
+    @Test void negativeInvestmentConfigurationFailsClosed() throws Exception {
+        assertThatThrownBy(() -> new TradingRepository().prepareBuy(connection, "BUY-INVALID-LIMIT", player,
+                "mona", 1, 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ONE, 0, BigDecimal.valueOf(-1))).isInstanceOf(IllegalArgumentException.class);
+        assertThat(count("transactions")).isZero();
+    }
+
     @Test void unlimitedBuyRejectsOverflowBeforePreparingPayment() throws Exception {
         TradingRepository trades = new TradingRepository();
         assertThatThrownBy(() -> trades.prepareBuy(connection, "BUY-OVERFLOW", player, "mona", 1,

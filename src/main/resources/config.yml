@@ -74,9 +74,10 @@ capital-gains-tax:
   percent: 10.0
 
 limits:
-  # 0 = 個数上限なし（残高・投資総額・数値精度の安全チェックは維持）
+  # 0 = 個数上限なし（残高・数値精度の安全チェックは維持）
   max-shares-per-stock: 0
-  max-total-investment: 10000000
+  # 0 = 投資総額の上限なし。購入時は手数料込みで残高を検証します。
+  max-total-investment: 0
   # LuckPerms/Bukkit権限 monakabu.limit.shares.<数値> と monakabu.limit.investment.<数値> で上書きできます。
 
 circuit-breaker:

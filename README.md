@@ -146,7 +146,7 @@ capital-gains-tax:
   percent: 10.0
 limits:
   max-shares-per-stock: 0 # 0 = 個数上限なし
-  max-total-investment: 10000000
+  max-total-investment: 0 # 0 = 投資上限なし（手数料込みの残高検証は維持）
 ```
 
 売却税は移動平均取得単価から計算した利益部分だけに適用します。損失売却に税はかかりません。LuckPerms等から `monakabu.limit.shares.5000`、`monakabu.limit.investment.50000000` を付与すると、そのプレイヤーの上限を引き上げられます。
