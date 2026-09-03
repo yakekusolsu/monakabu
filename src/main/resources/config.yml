@@ -74,7 +74,8 @@ capital-gains-tax:
   percent: 10.0
 
 limits:
-  max-shares-per-stock: 1000
+  # 0 = 個数上限なし（残高・投資総額・数値精度の安全チェックは維持）
+  max-shares-per-stock: 0
   max-total-investment: 10000000
   # LuckPerms/Bukkit権限 monakabu.limit.shares.<数値> と monakabu.limit.investment.<数値> で上書きできます。
 
@@ -139,7 +140,8 @@ web-trading:
   site-url: 'https://monakabu-realtime-dashboard.vercel.app/'
   link-code-lifetime: 10m
   order-poll-interval: 2s
-  max-shares-per-order: 1000
+  # 0 = 1注文あたりの個数上限なし
+  max-shares-per-order: 0
 
 hologram:
   max-count: 20

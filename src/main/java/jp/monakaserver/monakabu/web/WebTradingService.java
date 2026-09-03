@@ -176,9 +176,9 @@ public final class WebTradingService implements AutoCloseable {
     }
 
     private CompletableFuture<Void> process(WebOrder order) {
-        int maximum = Math.max(1, configs.config().getInt("web-trading.max-shares-per-order", 1000));
+        long maximum = configs.config().getLong("web-trading.max-shares-per-order", 0);
         CompletableFuture<TradeResult> execution;
-        if (order.type() != OrderType.REFRESH && (order.shares() <= 0 || order.shares() > maximum)) {
+        if (order.type() != OrderType.REFRESH && !jp.monakaserver.monakabu.trading.ShareLimits.validOrder(order.shares(), maximum)) {
             execution = CompletableFuture.completedFuture(TradeResult.failure("WEB_ORDER_LIMIT"));
         } else if (order.type() == OrderType.BUY) {
             execution = trading.buyWeb(order.playerId(), order.playerName(), order.stockId(), order.shares(), order.orderId().toString());

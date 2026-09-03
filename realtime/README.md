@@ -101,7 +101,7 @@ web-trading:
   site-url: 'https://monakabu-realtime-dashboard.vercel.app/'
   link-code-lifetime: 10m
   order-poll-interval: 2s
-  max-shares-per-order: 1000
+  max-shares-per-order: 0 # 0 = 個数上限なし
 ```
 
 プレイヤーはゲーム内で `/monakabu link` を実行し、サイトへ8文字のコードを入力します。コードは10分・1回限りです。連携解除は `/monakabu unlink`、サイト側の現在セッションだけを終了する場合はサイトの「ログアウト」を使用します。
@@ -144,7 +144,7 @@ MonaPrice 1.1.0以降を同じPaperサーバーへ導入し、`realtime.monapric
 - `POST /v1/orders`
 - `POST /v1/auth/logout`
 
-`/v1/account`、`/v1/orders`、`/v1/account/refresh`、`/v1/auth/logout` は `Authorization: Bearer <token>` が必要です。セッショントークンは標準14日で失効します。API環境変数 `WEB_SESSION_DAYS` で1～90日、`WEB_MAX_SHARES_PER_ORDER` でWeb注文1件の上限を変更できます。
+`/v1/account`、`/v1/orders`、`/v1/account/refresh`、`/v1/auth/logout` は `Authorization: Bearer <token>` が必要です。セッショントークンは標準14日で失効します。API環境変数 `WEB_SESSION_DAYS` で1～90日、`WEB_MAX_SHARES_PER_ORDER` でWeb注文1件の上限を変更できます。株数上限は `0`（標準）で解除でき、正の整数を指定すると上限を設定できます。Paperの `web-trading.max-shares-per-order` とAPIの両方で設定してください。銘柄ごとの保有上限も `limits.max-shares-per-stock: 0` で解除できます。残高、保有数、投資総額、手数料、注文IDの重複検査は引き続き有効です。JSONの数値精度を保つため9,007,199,254,740,991株を超える注文・保有は拒否します。
 
 ## 障害復旧と重複防止
 

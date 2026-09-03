@@ -1,6 +1,7 @@
 package jp.monakaserver.monakabu.database;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import jp.monakaserver.monakabu.database.repository.PlayerRepository;
 import jp.monakaserver.monakabu.database.repository.SettlementRepository;
 import jp.monakaserver.monakabu.database.repository.TradingRepository;
@@ -28,5 +29,50 @@ class DatabaseIntegrationTest {
     @Test void hologramLocationsPersistAcrossRestart()throws Exception{HologramRepository repository=new HologramRepository();UUID world=UUID.randomUUID();var record=new HologramRepository.HologramRecord("HOLO-TEST",world,1.5,64,2.5,90,0,"*",player,Instant.now());repository.insert(connection,record);assertThat(repository.findAll(connection)).singleElement().satisfies(saved->{assertThat(saved.worldId()).isEqualTo(world);assertThat(saved.stockId()).isEqualTo("*");});assertThat(repository.delete(connection,record.id())).isTrue();assertThat(repository.findAll(connection)).isEmpty();}
     @Test void realtimeOutboxRetriesAndCompletesExactlyOnce()throws Exception{RealtimeOutboxRepository repository=new RealtimeOutboxRepository();long now=Instant.now().toEpochMilli();repository.enqueue(connection,"RT-TEST","market.snapshot","{\"large\":\""+"x".repeat(1000)+"\"}",now);assertThat(repository.ready(connection,now,10)).singleElement().satisfies(event->{assertThat(event.eventId()).isEqualTo("RT-TEST");assertThat(event.payload()).hasSizeGreaterThan(1000);});repository.markFailed(connection,"RT-TEST",1,now+1000,"network",false);assertThat(repository.ready(connection,now,10)).isEmpty();assertThat(repository.ready(connection,now+1000,10)).singleElement().extracting(RealtimeOutboxRepository.OutboxEvent::attempts).isEqualTo(1);repository.markDelivered(connection,"RT-TEST",now+1100);repository.markDelivered(connection,"RT-TEST",now+1200);assertThat(repository.ready(connection,now+2000,10)).isEmpty();}
     @Test void dailyReportCanOnlyBeClaimedOncePerDate()throws Exception{DailyReportRepository repository=new DailyReportRepository();LocalDate date=LocalDate.of(2026,8,29);Instant generatedAt=Instant.parse("2026-08-29T12:00:00Z");assertThat(repository.claim(connection,DatabaseManager.Dialect.SQLITE,date,generatedAt)).isTrue();assertThat(repository.claim(connection,DatabaseManager.Dialect.SQLITE,date,generatedAt.plusSeconds(30))).isFalse();assertThat(count("daily_reports")).isEqualTo(1);}
+    @Test void unlimitedSharesAllowLargeBuyAndFullSaleWithoutDuplicatePayments() throws Exception {
+        TradingRepository trades = new TradingRepository();
+        var buy = trades.prepareBuy(connection, "BUY-LARGE", player, "mona", 1, 2001,
+                BigDecimal.ONE, BigDecimal.valueOf(2001), BigDecimal.ZERO, BigDecimal.valueOf(2001),
+                0, BigDecimal.valueOf(10_000_000));
+        trades.markBuyEconomyApplied(connection, buy.transactionId());
+        assertThat(trades.completeBuy(connection, buy)).isEqualTo(2001);
+        assertThat(trades.completeBuy(connection, buy)).isEqualTo(2001);
+        assertThatThrownBy(() -> trades.commitSell(connection, "OVERSELL", player, "mona", 1, 2002,
+                BigDecimal.ONE, BigDecimal.valueOf(2002), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(2002)))
+                .hasMessage("NOT_ENOUGH_SHARES");
+        assertThat(count("pending_payments")).isZero();
+        var sale = trades.commitSell(connection, "SELL-LARGE", player, "mona", 1, 2001,
+                BigDecimal.ONE, BigDecimal.valueOf(2001), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(2001));
+        assertThat(sale.resultingShares()).isZero();
+        assertThatThrownBy(() -> trades.commitSell(connection, "SELL-LARGE", player, "mona", 1, 2001,
+                BigDecimal.ONE, BigDecimal.valueOf(2001), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(2001)))
+                .hasMessage("NOT_ENOUGH_SHARES");
+        assertThat(count("pending_payments")).isEqualTo(1);
+    }
+
+    @Test void removingShareCapDoesNotRemoveInvestmentLimit() {
+        TradingRepository trades = new TradingRepository();
+        assertThatThrownBy(() -> trades.prepareBuy(connection, "BUY-OVER-INVESTMENT", player, "mona", 1,
+                2001, BigDecimal.ONE, BigDecimal.valueOf(2001), BigDecimal.ZERO, BigDecimal.valueOf(2001),
+                0, BigDecimal.valueOf(1000))).hasMessage("LIMIT_INVESTMENT");
+    }
+
+    @Test void unlimitedBuyRejectsOverflowBeforePreparingPayment() throws Exception {
+        TradingRepository trades = new TradingRepository();
+        assertThatThrownBy(() -> trades.prepareBuy(connection, "BUY-OVERFLOW", player, "mona", 1,
+                Long.MAX_VALUE, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+                0, BigDecimal.valueOf(10_000_000))).hasMessage("LIMIT_SHARES");
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO portfolios(uuid,stock_id,season_id,shares,average_cost,invested,realized_profit,version,updated_at) VALUES(?,'mona',1,?,1,0,0,0,0)")) {
+            statement.setString(1, player.toString());
+            statement.setLong(2, jp.monakaserver.monakabu.trading.ShareLimits.MAX_SAFE_SHARES);
+            statement.executeUpdate();
+        }
+        assertThatThrownBy(() -> trades.prepareBuy(connection, "BUY-OVER-HOLDING", player, "mona", 1,
+                1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE,
+                0, BigDecimal.valueOf(10_000_000))).hasMessage("LIMIT_SHARES");
+        assertThat(count("transactions")).isZero();
+    }
+
     private long count(String table)throws Exception{try(Statement statement=connection.createStatement();ResultSet rs=statement.executeQuery("SELECT COUNT(*) FROM "+table)){return rs.next()?rs.getLong(1):0;}}
 }

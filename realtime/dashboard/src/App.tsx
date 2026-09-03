@@ -374,7 +374,9 @@ function WebTrading({ market, selected }: { market: MarketState; selected: Stock
   const [token, setToken] = useState(() => window.localStorage.getItem("monakabu-web-token") ?? "");
   const [account, setAccount] = useState<WebAccountResponse | null>(null);
   const [code, setCode] = useState("");
-  const [shares, setShares] = useState(1);
+  const [sharesInput, setSharesInput] = useState("1");
+  const shares = Number(sharesInput);
+  const validShares = Number.isSafeInteger(shares) && shares > 0;
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [pendingTrade, setPendingTrade] = useState<PendingTrade | null>(null);
@@ -450,7 +452,8 @@ function WebTrading({ market, selected }: { market: MarketState; selected: Stock
     </div> : <div className="account-box">
       <div className="account-head"><div><span>ログイン中：</span><strong>{account?.identity.playerName ?? "確認中…"}</strong></div><div><button onClick={() => void refreshAccount()} disabled={loading}>[残高更新]</button><button onClick={() => void logout()}>[ログアウト]</button></div></div>
       <div className="account-summary"><div><span>利用可能残高</span><strong>{money(account?.account?.balance ?? 0)} {market.currency}</strong></div><div><span>選択銘柄の保有</span><strong>{selected ? `${holding} 株` : "—"}</strong></div><div><span>情報更新</span><strong>{account?.account ? dateTime(account.account.capturedAt) : "待機中"}</strong></div></div>
-      {selected && <div className="order-form"><div><b>{plain(selected.displayName)}</b><span>{money(selected.price)} {market.currency} / 1株（成行・手数料別）</span></div><label>株数 <input type="number" min="1" max="1000" step="1" value={shares} onChange={(event) => setShares(Math.max(1, Math.min(1000, Number(event.target.value) || 1)))} /></label><button className="buy-order" disabled={loading || account?.identity.canBuy === false || !market.marketOpen || selected.halted || selected.bankrupt} onClick={() => requestOrder("BUY")}>買う</button><button className="sell-order" disabled={loading || account?.identity.canSell === false || !market.marketOpen || selected.halted || selected.bankrupt || holding < shares} onClick={() => requestOrder("SELL")}>売る</button></div>}
+      {selected && <div className="order-form"><div><b>{plain(selected.displayName)}</b><span>{money(selected.price)} {market.currency} / 1株（成行・手数料別）</span></div><label>株数 <input type="number" min="1" step="1" value={sharesInput} aria-invalid={!validShares} onChange={(event) => setSharesInput(event.target.value)} /></label><button className="buy-order" disabled={loading || !validShares || account?.identity.canBuy === false || !market.marketOpen || selected.halted || selected.bankrupt} onClick={() => requestOrder("BUY")}>買う</button><button className="sell-order" disabled={loading || !validShares || account?.identity.canSell === false || !market.marketOpen || selected.halted || selected.bankrupt || holding < shares} onClick={() => requestOrder("SELL")}>売る</button></div>}
+      {!validShares && <p className="web-message" role="alert">株数は1以上の整数で入力してください（正確に扱える最大値：9,007,199,254,740,991）。</p>}
       {account?.orders.length ? <div className="web-orders"><h3>最近の注文</h3>{account.orders.slice(0, 6).map((item) => <div key={item.orderId}><span>{dateTime(item.createdAt)}</span><b>{item.type === "BUY" ? "購入" : item.type === "SELL" ? "売却" : "更新"} {item.stockId ?? ""} {item.shares || ""}</b><em className={`order-${item.status.toLowerCase()}`}>{orderStatus(item.status, item.result?.reason)}</em></div>)}</div> : null}
     </div>}
     {message && <p className="web-message">{message}</p>}

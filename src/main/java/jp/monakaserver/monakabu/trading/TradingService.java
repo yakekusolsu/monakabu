@@ -49,10 +49,10 @@ public final class TradingService {
         CompletableFuture<TradeResult> future;
         try{
             Season season=requireOpenSeason();StockSnapshot stock=requireTradable(stockId);double feePercent=Math.max(0,configs.config().getDouble("fees.buy.percent",1));double balance=economy.balance(player);UUID playerId=player.getUniqueId();String playerName=player.getName();
-            long maxShares=permissionLong(player,"monakabu.limit.shares.",configs.config().getLong("limits.max-shares-per-stock",1000));
+            long maxShares=permissionLong(player,"monakabu.limit.shares.",ShareLimits.effective(configs.config().getLong("limits.max-shares-per-stock",0)));
             BigDecimal maxInvestment=permissionMoney(player,"monakabu.limit.investment.",BigDecimal.valueOf(configs.config().getDouble("limits.max-total-investment",10_000_000)));
             future=database.transaction(c->{players.upsert(c,playerId,playerName);PortfolioPosition position=repository.position(c,playerId,stockId,season.id()).orElse(new PortfolioPosition(playerId,stockId,season.id(),0,Money.ZERO));
-                long shares=requestedShares<0?maximumBuy(balance,stock.price(),feePercent,maxShares-position.shares()):requestedShares;
+                long shares=requestedShares<0?maximumBuy(balance,stock.price(),feePercent,ShareLimits.remaining(maxShares,position.shares())):requestedShares;
                 if(shares<=0)throw new IllegalStateException("INVALID_AMOUNT");BigDecimal gross=Money.normalize(stock.price().multiply(BigDecimal.valueOf(shares)));BigDecimal fee=Money.percent(gross,feePercent);BigDecimal total=Money.normalize(gross.add(fee));
                 String txId=TradeIds.random("BUY",zone);return repository.prepareBuy(c,txId,playerId,stockId,season.id(),shares,stock.price(),gross,fee,total,maxShares,maxInvestment);
             }).thenCompose(plan->MainThread.call(plugin,()->{
@@ -100,7 +100,7 @@ public final class TradingService {
                 .thenCompose(existing->{
                     if(existing!=null)return existing.success()?payments.payPending(playerId).thenApply(ignored->existing):CompletableFuture.completedFuture(existing);
                     Season season=requireOpenSeason();StockSnapshot stock=requireTradable(stockId);double feePercent=Math.max(0,configs.config().getDouble("fees.buy.percent",1));
-                    long maxShares=configs.config().getLong("limits.max-shares-per-stock",1000);BigDecimal maxInvestment=BigDecimal.valueOf(configs.config().getDouble("limits.max-total-investment",10_000_000));
+                    long maxShares=configs.config().getLong("limits.max-shares-per-stock",0);BigDecimal maxInvestment=BigDecimal.valueOf(configs.config().getDouble("limits.max-total-investment",10_000_000));
                     return database.transaction(c->{players.upsert(c,playerId,playerName);BigDecimal gross=Money.normalize(stock.price().multiply(BigDecimal.valueOf(shares)));BigDecimal fee=Money.percent(gross,feePercent);BigDecimal total=Money.normalize(gross.add(fee));return repository.prepareBuy(c,transactionId,playerId,stockId,season.id(),shares,stock.price(),gross,fee,total,maxShares,maxInvestment);})
                             .thenCompose(plan->MainThread.call(plugin,()->{OfflinePlayer player=Bukkit.getOfflinePlayer(playerId);EconomyResponse response=economy.withdraw(player,plan.net());return new WithdrawAttempt(response.transactionSuccess(),response.errorMessage);})
                                     .thenCompose(attempt->{if(!attempt.success())return database.transaction(c->{repository.failBuy(c,transactionId,attempt.error());return TradeResult.failure("NOT_ENOUGH_MONEY");});return database.transaction(c->{repository.markBuyEconomyApplied(c,transactionId);long resulting=repository.completeBuy(c,plan);return new TradeResult(true,"",transactionId,stockId,shares,plan.gross(),plan.fee(),Money.ZERO,plan.net(),resulting);}).exceptionallyCompose(error->recoverFailedBuy(plan,error));}));

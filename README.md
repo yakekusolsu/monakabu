@@ -145,7 +145,7 @@ capital-gains-tax:
   enabled: true
   percent: 10.0
 limits:
-  max-shares-per-stock: 1000
+  max-shares-per-stock: 0 # 0 = 個数上限なし
   max-total-investment: 10000000
 ```
 
@@ -316,7 +316,7 @@ web-trading:
   site-url: 'https://monakabu-realtime-dashboard.vercel.app/'
   link-code-lifetime: 10m
   order-poll-interval: 2s
-  max-shares-per-order: 1000
+  max-shares-per-order: 0 # 0 = 個数上限なし
 ```
 
 ゲーム内で `/monakabu link` を実行すると、8文字のコードが表示されます。公開サイトの「Minecraft連携・Web売買」へ10分以内に入力してください。コードは1回使用すると失効し、サイトセッションは標準14日間有効です。`/monakabu unlink` は発行中コードと全セッションを失効し、未処理注文を取り消します。

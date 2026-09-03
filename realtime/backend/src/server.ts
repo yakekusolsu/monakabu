@@ -6,6 +6,7 @@ import helmet from "helmet";
 import { WebSocket, WebSocketServer } from "ws";
 import { verifySignature, timestampIsFresh } from "./security.js";
 import { Store } from "./store.js";
+import { webShareLimit, validShareCount } from "./share-limits.js";
 import type { IngestEvent, WebAccountSnapshot, WebIdentity } from "./types.js";
 
 const port = Number(process.env.PORT ?? 10000);
@@ -15,7 +16,7 @@ if (sharedSecret.length < 32) throw new Error("MONAKABU_SHARED_SECRET must conta
 const expectedServerId = process.env.MONAKABU_SERVER_ID?.trim() || null;
 const maxSignatureAge = Number(process.env.SIGNATURE_MAX_AGE_SECONDS ?? 300);
 const sessionDays = Math.max(1, Math.min(90, Number(process.env.WEB_SESSION_DAYS ?? 14)));
-const maxWebShares = Math.max(1, Number(process.env.WEB_MAX_SHARES_PER_ORDER ?? 1000));
+const maxWebShares = webShareLimit(process.env.WEB_MAX_SHARES_PER_ORDER);
 const allowedOrigins = new Set([
   "https://monakabu-realtime-dashboard.vercel.app",
   ...(process.env.ALLOWED_ORIGINS ?? "http://localhost:5173")
@@ -186,7 +187,7 @@ app.post("/v1/orders", express.json({ limit: "8kb" }), async (request, response)
     const shares = Number(request.body?.shares);
     const orderId = stringValue(request.body?.requestId);
     if ((type !== "BUY" && type !== "SELL") || !/^[a-z0-9_-]{1,64}$/.test(stockId)
-      || !Number.isSafeInteger(shares) || shares < 1 || shares > maxWebShares || !uuidPattern.test(orderId)) {
+      || !validShareCount(shares, maxWebShares) || !uuidPattern.test(orderId)) {
       return void response.status(400).json({ error: "invalid order" });
     }
     if ((type === "BUY" && !identity.canBuy) || (type === "SELL" && !identity.canSell)) return void response.status(403).json({ error: "trade permission denied" });

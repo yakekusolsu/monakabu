@@ -44,7 +44,7 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://monakabu-realtime-dashboard.vercel.app}
       SIGNATURE_MAX_AGE_SECONDS: ${SIGNATURE_MAX_AGE_SECONDS:-300}
       WEB_SESSION_DAYS: ${WEB_SESSION_DAYS:-14}
-      WEB_MAX_SHARES_PER_ORDER: ${WEB_MAX_SHARES_PER_ORDER:-1000}
+      WEB_MAX_SHARES_PER_ORDER: ${WEB_MAX_SHARES_PER_ORDER:-0}
     ports:
       - 127.0.0.1:${API_PORT:-10000}:10000
     healthcheck:

@@ -7,6 +7,14 @@ import org.junit.jupiter.api.Test;
 
 class TradingServiceTest {
     @Test
+    void unlimitedMaximumBuyStillRespectsBalanceAndFees() {
+        long shares = TradingService.maximumBuy(50_000, BigDecimal.ONE, 1, ShareLimits.effective(0));
+        assertThat(shares).isEqualTo(49_504);
+        assertThat(TradingService.totalBuyCost(BigDecimal.ONE, shares, 1)).isLessThanOrEqualTo(new BigDecimal("50000"));
+        assertThat(TradingService.totalBuyCost(BigDecimal.ONE, shares + 1, 1)).isGreaterThan(new BigDecimal("50000"));
+    }
+
+    @Test
     void maximumBuyUsesFeeOnTheCompleteOrder() {
         long shares = TradingService.maximumBuy(490, new BigDecimal("0.49"), 1, 1_000);
 

@@ -4,6 +4,7 @@ import jp.monakaserver.monakabu.model.PortfolioPosition;
 import jp.monakaserver.monakabu.model.TransactionStatus;
 import jp.monakaserver.monakabu.model.TransactionType;
 import jp.monakaserver.monakabu.util.Money;
+import jp.monakaserver.monakabu.trading.ShareLimits;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
@@ -75,7 +76,8 @@ public final class TradingRepository {
         requireOpenSeason(connection, seasonId);
         PortfolioPosition current = position(connection, uuid, stockId, seasonId)
                 .orElse(new PortfolioPosition(uuid, stockId, seasonId, 0, Money.ZERO));
-        if (shares <= 0 || current.shares() + shares > maxShares) throw new IllegalStateException("LIMIT_SHARES");
+        // Subtract first so oversized requests cannot overflow before Vault is charged.
+        if (shares <= 0 || shares > ShareLimits.remaining(maxShares, current.shares())) throw new IllegalStateException("LIMIT_SHARES");
         BigDecimal investedNow = portfolioValue(connection, uuid, seasonId);
         if (investedNow.add(gross).compareTo(maxInvestment) > 0) throw new IllegalStateException("LIMIT_INVESTMENT");
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO transactions(transaction_id,uuid,stock_id,type,shares,price,gross,fee,tax,net,occurred_at,season_id,status,metadata) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
