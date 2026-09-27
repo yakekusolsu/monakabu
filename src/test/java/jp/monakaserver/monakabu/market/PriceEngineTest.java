@@ -1,6 +1,7 @@
 package jp.monakaserver.monakabu.market;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -35,6 +36,15 @@ class PriceEngineTest {
 
         assertThat(strongerPrice.subtract(BigDecimal.valueOf(1000)).abs())
                 .isGreaterThan(normalPrice.subtract(BigDecimal.valueOf(1000)).abs());
+    }
+
+    @Test
+    void forcedPriceCannotBypassConfiguredMinimum() {
+        StockSnapshot snapshot = snapshot(.1);
+
+        assertThatThrownBy(() -> MarketService.validateForcedPrice(snapshot, BigDecimal.ZERO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("900");
     }
 
     private StockSnapshot snapshot(double volatility) {

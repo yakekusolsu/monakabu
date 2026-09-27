@@ -93,7 +93,9 @@ public final class MarketService {
 
     public java.util.concurrent.CompletableFuture<StockSnapshot> forcePrice(String stockId,BigDecimal price){
         Season season=seasonSupplier.get();if(season==null)return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("NO_SEASON"));
-        StockSnapshot before=registry.find(stockId).orElseThrow(()->new IllegalArgumentException("Unknown stock"));StockSnapshot after=registry.updatePrice(stockId,price,Instant.now());
+        StockSnapshot before=registry.find(stockId).orElseThrow(()->new IllegalArgumentException("Unknown stock"));
+        validateForcedPrice(before,price);
+        StockSnapshot after=registry.updatePrice(stockId,price,Instant.now());
         return database.transaction(c->{requireOpen(c,season.id());repository.savePrice(c,after,season.id());return after;}).thenApply(saved->{MainThread.run(plugin,()->Bukkit.getPluginManager().callEvent(new StockPriceChangeEvent(stockId,before.price(),saved.price())));return saved;}).whenComplete((ok,error)->{if(error!=null)registry.restore(stockId,before.price(),before.previousPrice(),before.dailyHigh(),before.dailyLow(),before.trend(),before.haltedUntil(),before.bankrupt(),before.updatedAt());});
     }
 
@@ -103,5 +105,10 @@ public final class MarketService {
     public java.util.concurrent.CompletableFuture<Void> resetForSeason(long seasonId){registry.resetForSeason(Instant.now());return database.transaction(c->{for(StockSnapshot s:registry.all())repository.savePrice(c,s,seasonId);return null;});}
     public java.util.concurrent.CompletableFuture<java.util.List<BigDecimal>> history(String stockId,Duration period,int limit){long since=Instant.now().minus(period).toEpochMilli();return database.read(c->repository.history(c,stockId,since,limit));}
     public void pruneHistory(){long before=Instant.now().minus(configs.config().getLong("market.history-retention-detailed-days",30),ChronoUnit.DAYS).toEpochMilli();database.transaction(c->repository.pruneHistory(c,before));}
+    static void validateForcedPrice(StockSnapshot stock,BigDecimal price){
+        if(price==null||price.compareTo(stock.definition().minPrice())<0||price.compareTo(stock.definition().maxPrice())>0){
+            throw new IllegalArgumentException("Price must be between "+stock.definition().minPrice().toPlainString()+" and "+stock.definition().maxPrice().toPlainString());
+        }
+    }
     private void requireOpen(java.sql.Connection connection,long seasonId)throws java.sql.SQLException{try(var statement=connection.prepareStatement("SELECT status FROM seasons WHERE season_id=?")){statement.setLong(1,seasonId);try(var rs=statement.executeQuery()){if(!rs.next()||!"OPEN".equals(rs.getString(1)))throw new IllegalStateException("MARKET_CLOSED_DURING_PRICE_UPDATE");}}}
 }
