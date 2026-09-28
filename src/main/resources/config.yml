@@ -110,6 +110,8 @@ trading-rules:
   price-limit:
     24h-percent: 25.0
   circuit-breaker:
+    # 保有上限・値幅制限を維持し、自動取引停止は行いません。
+    enabled: false
     window-10m: {window: 10m, change-percent: 10.0, cooldown: 5m}
     window-30m: {window: 30m, change-percent: 15.0, cooldown: 15m}
     window-1h: {window: 1h, change-percent: 20.0, cooldown: 30m}

@@ -49,7 +49,7 @@ public final class MarketService {
     }
 
     public void start() {
-        stop(); long ticks=Math.max(20,updateInterval.toSeconds()*20);
+        stop(); clearAutomaticHalts(); long ticks=Math.max(20,updateInterval.toSeconds()*20);
         priceTask=Bukkit.getScheduler().runTaskTimerAsynchronously(plugin,this::updatePrices,ticks,ticks);
         Duration eventInterval=DurationParser.parse(configs.config().getString("events.check-interval","30m"));
         eventTask=Bukkit.getScheduler().runTaskTimerAsynchronously(plugin,events::randomCheck,eventInterval.toSeconds()*20,eventInterval.toSeconds()*20);
@@ -57,6 +57,32 @@ public final class MarketService {
     }
 
     public void stop() { if(priceTask!=null)priceTask.cancel();if(eventTask!=null)eventTask.cancel();if(cleanupTask!=null)cleanupTask.cancel();priceTask=null;eventTask=null;cleanupTask=null; }
+
+    private void clearAutomaticHalts() {
+        if (policy.automaticCircuitBreakerEnabled()) return;
+        ArrayList<StockSnapshot> halted = new ArrayList<>();
+        for (StockSnapshot snapshot : registry.all()) {
+            if (snapshot.haltedUntil() == null || snapshot.bankrupt()) continue;
+            halted.add(snapshot);
+            registry.resume(snapshot.definition().id());
+        }
+        if (halted.isEmpty()) return;
+        try {
+            database.transaction(connection -> {
+                for (StockSnapshot old : halted) {
+                    repository.updateState(connection, registry.find(old.definition().id()).orElseThrow());
+                }
+                return null;
+            }).join();
+            plugin.getLogger().info("Automatic circuit breaker disabled; cleared " + halted.size() + " stock halt(s)");
+        } catch (RuntimeException error) {
+            for (StockSnapshot old : halted) {
+                registry.restore(old.definition().id(), old.price(), old.previousPrice(), old.dailyHigh(), old.dailyLow(),
+                        old.trend(), old.haltedUntil(), old.bankrupt(), old.updatedAt());
+            }
+            throw error;
+        }
+    }
 
     public void updatePrices() {
         Season season=seasonSupplier.get(); Instant now=Instant.now();

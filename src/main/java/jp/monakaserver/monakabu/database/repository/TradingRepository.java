@@ -205,9 +205,11 @@ public final class TradingRepository {
         }
         long legacy=Math.max(0,position.shares()-tracked);long eligible=legacy;
         for(LotPortion lot:lots)if(!lot.purchasedAt().plus(minimumHold).isAfter(now))eligible=Math.addExact(eligible,lot.shares());
-        if(requested<=0||requested>position.shares())throw new IllegalStateException("NOT_ENOUGH_SHARES");
-        if(requested>eligible)throw new IllegalStateException("MINIMUM_HOLD");
-        long remaining=requested;BigDecimal basis=Money.ZERO;List<LotPortion> used=new ArrayList<>();
+        long target=requested<0?eligible:requested;
+        if(target<=0){if(position.shares()>0)throw new IllegalStateException("MINIMUM_HOLD");throw new IllegalStateException("NOT_ENOUGH_SHARES");}
+        if(target>position.shares())throw new IllegalStateException("NOT_ENOUGH_SHARES");
+        if(target>eligible)throw new IllegalStateException("MINIMUM_HOLD");
+        long remaining=target;BigDecimal basis=Money.ZERO;List<LotPortion> used=new ArrayList<>();
         long legacyUsed=Math.min(legacy,remaining);if(legacyUsed>0){basis=basis.add(position.averageCost().multiply(BigDecimal.valueOf(legacyUsed)));remaining-=legacyUsed;}
         for(LotPortion lot:lots){if(remaining==0)break;if(lot.purchasedAt().plus(minimumHold).isAfter(now))continue;long take=Math.min(remaining,lot.shares());used.add(new LotPortion(lot.lotId(),take,lot.unitCost(),lot.purchasedAt()));basis=basis.add(lot.unitCost().multiply(BigDecimal.valueOf(take)));remaining-=take;}
         if(remaining!=0)throw new IllegalStateException("MINIMUM_HOLD");

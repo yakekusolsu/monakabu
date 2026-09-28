@@ -1,6 +1,7 @@
 package jp.monakaserver.monakabu.trading;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
@@ -37,5 +38,13 @@ class TradingServiceTest {
     void nonPositiveBalanceCannotBuyShares() {
         assertThat(TradingService.maximumBuy(0, new BigDecimal("100"), 1, 1_000)).isZero();
         assertThat(TradingService.maximumBuy(-25, new BigDecimal("100"), 1, 1_000)).isZero();
+    }
+
+    @Test
+    void sellAllBypassesPerOrderLimitButExactOrdersDoNot() {
+        assertThat(TradingService.sellAmount(-1, 1_000, 25)).isEqualTo(1_000);
+        assertThat(TradingService.sellAmount(25, 1_000, 25)).isEqualTo(25);
+        assertThatThrownBy(() -> TradingService.sellAmount(26, 1_000, 25))
+                .isInstanceOf(IllegalStateException.class).hasMessage("ORDER_LIMIT");
     }
 }

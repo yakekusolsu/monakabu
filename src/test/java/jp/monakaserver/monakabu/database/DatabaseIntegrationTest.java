@@ -79,6 +79,9 @@ class DatabaseIntegrationTest {
         assertThatThrownBy(()->trades.quoteSale(connection,player,"mona",1,1,Instant.now(),Duration.ofMinutes(5))).hasMessage("MINIMUM_HOLD");
         try(PreparedStatement s=connection.prepareStatement("UPDATE stock_lots SET purchased_at=? WHERE source_transaction_id='BUY-LOT'")){s.setLong(1,Instant.now().minus(Duration.ofMinutes(6)).toEpochMilli());s.executeUpdate();}
         assertThat(trades.quoteSale(connection,player,"mona",1,5,Instant.now(),Duration.ofMinutes(5)).eligibleShares()).isEqualTo(5);
+        var newer=trades.prepareBuy(connection,"BUY-LOT-NEW",player,"mona",1,2,BigDecimal.valueOf(1100),BigDecimal.valueOf(2200),BigDecimal.ZERO,BigDecimal.valueOf(2200),1000,BigDecimal.ZERO);trades.completeBuy(connection,newer);
+        var allEligible=trades.quoteSale(connection,player,"mona",1,-1,Instant.now(),Duration.ofMinutes(5));
+        assertThat(allEligible.eligibleShares()).isEqualTo(5);assertThat(allEligible.portions()).extracting(TradingRepository.LotPortion::shares).containsExactly(5L);
         UUID legacy=UUID.randomUUID();new PlayerRepository().upsert(connection,legacy,"Legacy");try(PreparedStatement s=connection.prepareStatement("INSERT INTO portfolios(uuid,stock_id,season_id,shares,average_cost,invested,realized_profit,version,updated_at) VALUES(?,'mona',1,3,900,2700,0,1,?)")){s.setString(1,legacy.toString());s.setLong(2,Instant.now().toEpochMilli());s.executeUpdate();}
         assertThat(trades.quoteSale(connection,legacy,"mona",1,3,Instant.now(),Duration.ofMinutes(5)).eligibleShares()).isEqualTo(3);
     }

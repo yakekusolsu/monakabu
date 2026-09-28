@@ -6,7 +6,7 @@ import helmet from "helmet";
 import { WebSocket, WebSocketServer } from "ws";
 import { verifySignature, timestampIsFresh } from "./security.js";
 import { Store } from "./store.js";
-import { webShareLimit, validShareCount } from "./share-limits.js";
+import { webShareLimit, validOrderShareCount } from "./share-limits.js";
 import type { IngestEvent, WebAccountSnapshot, WebIdentity } from "./types.js";
 
 const port = Number(process.env.PORT ?? 10000);
@@ -187,7 +187,7 @@ app.post("/v1/orders", express.json({ limit: "8kb" }), async (request, response)
     const shares = Number(request.body?.shares);
     const orderId = stringValue(request.body?.requestId);
     if ((type !== "BUY" && type !== "SELL") || !/^[a-z0-9_-]{1,64}$/.test(stockId)
-      || !validShareCount(shares, maxWebShares) || !uuidPattern.test(orderId)) {
+      || !validOrderShareCount(type, shares, maxWebShares) || !uuidPattern.test(orderId)) {
       return void response.status(400).json({ error: "invalid order" });
     }
     if ((type === "BUY" && !identity.canBuy) || (type === "SELL" && !identity.canSell)) return void response.status(403).json({ error: "trade permission denied" });

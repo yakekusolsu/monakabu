@@ -17,7 +17,7 @@ NMS は使用していません。メッセージとGUI名は Adventure MiniMess
 
 ## インストール
 
-1. `build/libs/MonaKabu-2.0.1.jar` を `plugins/` へ配置します。
+1. `build/libs/MonaKabu-2.0.2.jar` を `plugins/` へ配置します。
 2. Vault と経済プラグインを導入します。
 3. Paper を起動し、`plugins/MonaKabu/` に設定ファイルを生成します。
 4. `config.yml`、`stocks.yml`、必要に応じて `events.yml` と `gui.yml` を編集します。
@@ -35,7 +35,7 @@ Windows:
 .\gradlew.bat build
 ```
 
-Gradle toolchain が Java 21 を自動取得します。成果物は `build/libs/MonaKabu-2.0.1.jar` です。
+Gradle toolchain が Java 21 を自動取得します。成果物は `build/libs/MonaKabu-2.0.2.jar` です。
 
 ## シーズンと隔週日曜日決済
 

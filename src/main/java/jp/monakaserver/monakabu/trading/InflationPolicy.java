@@ -27,6 +27,9 @@ public final class InflationPolicy {
     public double buyFee() { return percent("trading-rules.fees.buy-percent", 2); }
     public double sellFee() { return percent("trading-rules.fees.sell-percent", 3); }
     public double dailyPriceLimit() { return percent("trading-rules.price-limit.24h-percent", 25); }
+    public boolean automaticCircuitBreakerEnabled() {
+        return configs.config().getBoolean("trading-rules.circuit-breaker.enabled", false);
+    }
 
     public AssetTier tier(BigDecimal totalAssets) {
         List<AssetTier> tiers = new ArrayList<>();
@@ -87,6 +90,7 @@ public final class InflationPolicy {
     }
 
     public List<CircuitWindow> circuitWindows() {
+        if (!automaticCircuitBreakerEnabled()) return List.of();
         return List.of(
                 new CircuitWindow(duration("trading-rules.circuit-breaker.window-10m.window","10m"),percent("trading-rules.circuit-breaker.window-10m.change-percent",10),duration("trading-rules.circuit-breaker.window-10m.cooldown","5m")),
                 new CircuitWindow(duration("trading-rules.circuit-breaker.window-30m.window","30m"),percent("trading-rules.circuit-breaker.window-30m.change-percent",15),duration("trading-rules.circuit-breaker.window-30m.cooldown","15m")),

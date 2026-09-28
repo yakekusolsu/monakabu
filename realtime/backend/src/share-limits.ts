@@ -10,3 +10,7 @@ export function webShareLimit(raw = "0"): number {
 export function validShareCount(shares: number, maximum: number): boolean {
   return Number.isSafeInteger(shares) && shares > 0 && shares <= maximum;
 }
+
+export function validOrderShareCount(type: string, shares: number, maximum: number): boolean {
+  return type === "SELL" && shares === -1 || validShareCount(shares, maximum);
+}

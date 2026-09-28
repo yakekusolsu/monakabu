@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validShareCount, webShareLimit } from "./share-limits.js";
+import { validOrderShareCount, validShareCount, webShareLimit } from "./share-limits.js";
 
 test("default and zero disable the arbitrary order cap", () => {
   assert.equal(webShareLimit(), Number.MAX_SAFE_INTEGER);
@@ -22,4 +22,10 @@ test("invalid and imprecise quantities are rejected", () => {
   for (const raw of ["", " ", "-1", "1.5", "NaN", "Infinity", "9007199254740992"]) {
     assert.throws(() => webShareLimit(raw));
   }
+});
+
+test("sell-all marker is accepted only for sell orders", () => {
+  assert.equal(validOrderShareCount("SELL", -1, webShareLimit("0")), true);
+  assert.equal(validOrderShareCount("BUY", -1, webShareLimit("0")), false);
+  assert.equal(validOrderShareCount("SELL", -2, webShareLimit("0")), false);
 });
