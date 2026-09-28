@@ -342,7 +342,8 @@ public final class RealtimeService implements Listener, AutoCloseable {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("rank", entry.rank());
             value.put("playerName", entry.playerName());
-            value.put("profit", entry.realizedProfit());
+            // Keep the legacy field as the live total P/L so older dashboards do not show every player as zero.
+            value.put("profit", entry.seasonProfit());
             value.put("trades", entry.trades());
             value.put("cash",entry.cash());value.put("stockValue",entry.stockValue());value.put("totalAssets",entry.totalAssets());
             value.put("seasonProfit",entry.seasonProfit());value.put("realizedProfit",entry.realizedProfit());value.put("totalTax",entry.totalTax());value.put("roi",entry.roi());
