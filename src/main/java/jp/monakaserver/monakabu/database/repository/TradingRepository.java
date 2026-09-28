@@ -17,8 +17,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class TradingRepository {
+    private static final String ECONOMY_BACKFILL="v2-economy-ledger-backfill";
     public record PreparedBuy(String transactionId, UUID uuid, String stockId, long seasonId, long shares,
                               BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal net) {}
     public record SellCommit(long resultingShares, BigDecimal realizedProfit, String paymentId) {}
@@ -123,6 +126,72 @@ public final class TradingRepository {
         }
         addSeasonEconomy(connection,buy.seasonId(),buy.uuid(),Money.ZERO,Money.ZERO,buy.fee(),Money.ZERO,Money.ZERO,Money.ZERO);
         return resulting;
+    }
+
+    /** Rebuilds v2 headline metrics once so an in-progress pre-v2 season does not display zeroes. */
+    public int backfillSeasonEconomy(Connection connection) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT 1 FROM data_migrations WHERE migration_id=?")) {
+            statement.setString(1, ECONOMY_BACKFILL);
+            try (ResultSet rs = statement.executeQuery()) { if (rs.next()) return 0; }
+        }
+        record Key(long seasonId, UUID uuid) {}
+        record Totals(BigDecimal profit, BigDecimal loss, BigDecimal fees, BigDecimal taxes) {}
+        Map<Key, Totals> totals = new LinkedHashMap<>();
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT season_id,uuid,type,fee,tax,metadata FROM transactions WHERE status=?")) {
+            statement.setString(1, TransactionStatus.COMPLETED.name());
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    BigDecimal realized = Money.ZERO;
+                    TransactionType type = TransactionType.valueOf(rs.getString(3));
+                    String metadata = rs.getString(6);
+                    if ((type == TransactionType.SELL || type == TransactionType.SETTLEMENT)
+                            && metadata != null && metadata.startsWith("realized=")) {
+                        try { realized = new BigDecimal(metadata.substring("realized=".length())); }
+                        catch (NumberFormatException ignored) { }
+                    }
+                    Key key = new Key(rs.getLong(1), UUID.fromString(rs.getString(2)));
+                    Totals old = totals.getOrDefault(key,
+                            new Totals(Money.ZERO, Money.ZERO, Money.ZERO, Money.ZERO));
+                    totals.put(key, new Totals(
+                            old.profit().add(realized.max(Money.ZERO)),
+                            old.loss().add(realized.min(Money.ZERO).abs()),
+                            old.fees().add(rs.getBigDecimal(4)),
+                            old.taxes().add(rs.getBigDecimal(5))));
+                }
+            }
+        }
+        for (Map.Entry<Key, Totals> entry : totals.entrySet()) {
+            Key key = entry.getKey();
+            Totals value = entry.getValue();
+            try (PreparedStatement update = connection.prepareStatement(
+                    "UPDATE season_player_economy SET realized_profit=?,realized_loss=?,fees_paid=?,taxes_paid=? WHERE season_id=? AND uuid=?")) {
+                update.setBigDecimal(1, value.profit());
+                update.setBigDecimal(2, value.loss());
+                update.setBigDecimal(3, value.fees());
+                update.setBigDecimal(4, value.taxes());
+                update.setLong(5, key.seasonId());
+                update.setString(6, key.uuid().toString());
+                if (update.executeUpdate() > 0) continue;
+            }
+            try (PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO season_player_economy(season_id,uuid,realized_profit,realized_loss,fees_paid,taxes_paid) VALUES(?,?,?,?,?,?)")) {
+                insert.setLong(1, key.seasonId());
+                insert.setString(2, key.uuid().toString());
+                insert.setBigDecimal(3, value.profit());
+                insert.setBigDecimal(4, value.loss());
+                insert.setBigDecimal(5, value.fees());
+                insert.setBigDecimal(6, value.taxes());
+                insert.executeUpdate();
+            }
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO data_migrations(migration_id,applied_at) VALUES(?,?)")) {
+            statement.setString(1, ECONOMY_BACKFILL);
+            statement.setLong(2, Instant.now().toEpochMilli());
+            statement.executeUpdate();
+        }
+        return totals.size();
     }
 
     /** FIFO quote. Shares not represented by a lot predate v2 and are treated as fully matured. */

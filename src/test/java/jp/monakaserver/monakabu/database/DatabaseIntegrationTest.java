@@ -51,6 +51,29 @@ class DatabaseIntegrationTest {
         assertThat(count("pending_payments")).isEqualTo(1);
     }
 
+    @Test void legacySeasonEconomyIsBackfilledExactlyOnce() throws Exception {
+        TradingRepository trades = new TradingRepository();
+        var buy = trades.prepareBuy(connection, "BUY-BACKFILL", player, "mona", 1, 10,
+                BigDecimal.valueOf(1000), BigDecimal.valueOf(10000), BigDecimal.valueOf(100),
+                BigDecimal.valueOf(10100), 1000, BigDecimal.ZERO);
+        trades.completeBuy(connection, buy);
+        trades.commitSell(connection, "SELL-BACKFILL", player, "mona", 1, 2,
+                BigDecimal.valueOf(1500), BigDecimal.valueOf(3000), BigDecimal.valueOf(60),
+                BigDecimal.valueOf(94), BigDecimal.valueOf(2846));
+        try (PreparedStatement statement = connection.prepareStatement("DELETE FROM season_player_economy")) {
+            statement.executeUpdate();
+        }
+
+        assertThat(trades.backfillSeasonEconomy(connection)).isEqualTo(1);
+        assertThat(trades.seasonEconomy(connection, 1, player)).satisfies(economy -> {
+            assertThat(economy.realizedProfit()).isEqualByComparingTo("846");
+            assertThat(economy.realizedLoss()).isZero();
+            assertThat(economy.feesPaid()).isEqualByComparingTo("160");
+            assertThat(economy.taxesPaid()).isEqualByComparingTo("94");
+        });
+        assertThat(trades.backfillSeasonEconomy(connection)).isZero();
+    }
+
     @Test void v2LotsEnforceMinimumHoldWhileLegacySharesRemainSellable()throws Exception{
         TradingRepository trades=new TradingRepository();var buy=trades.prepareBuy(connection,"BUY-LOT",player,"mona",1,5,BigDecimal.valueOf(1000),BigDecimal.valueOf(5000),BigDecimal.ZERO,BigDecimal.valueOf(5000),1000,BigDecimal.ZERO);trades.markBuyEconomyApplied(connection,buy.transactionId());trades.completeBuy(connection,buy);
         assertThatThrownBy(()->trades.quoteSale(connection,player,"mona",1,1,Instant.now(),Duration.ofMinutes(5))).hasMessage("MINIMUM_HOLD");
