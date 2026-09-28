@@ -10,6 +10,7 @@ const periods = ["1h", "6h", "24h", "7d"] as const;
 const periodLabels: Record<Period, string> = { "1h": "1時間", "6h": "6時間", "24h": "24時間", "7d": "7日" };
 type Period = typeof periods[number];
 type Connection = "connecting" | "live" | "offline";
+type MarketView = "charts" | "ranking" | "trading";
 interface PendingTrade { type: "BUY" | "SELL"; stockId: string; stockName: string; shares: number; price: number; }
 
 export default function App() {
@@ -21,7 +22,9 @@ export default function App() {
   const [period, setPeriod] = useState<Period>("24h");
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [marketView, setMarketView] = useState<MarketView>(() => window.location.hash === "#ranking" ? "ranking" : window.location.hash === "#web-trading" ? "trading" : "charts");
   const sequence = useRef(0);
+  const showMarketView = (view: MarketView) => { setMarketView(view); window.history.replaceState(null, "", view === "charts" ? "#market" : view === "ranking" ? "#ranking" : "#web-trading"); };
 
   useEffect(() => {
     if (!apiUrl || !wsUrl) return;
@@ -102,7 +105,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><img className="brand-mark" src="/monaka.png" alt="" width="48" height="48" /><div><strong>{pricePage ? "MonaPrice" : "MonaKabu"}</strong><small>MONAKA SERVER / {pricePage ? "ITEM MARKET" : "STOCK MARKET"}</small></div></div>
-        <nav className="board-nav" aria-label="サイトメニュー"><a className={!pricePage ? "current" : ""} aria-current={!pricePage ? "page" : undefined} href="/">株式市場</a><a className={pricePage ? "current" : ""} aria-current={pricePage ? "page" : undefined} href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><a href="#ranking">ランキング</a><a href="#market">市場一覧</a><a href="#web-trading">Web取引</a></>}</nav>
+        <nav className="board-nav" aria-label="サイトメニュー"><a className={!pricePage ? "current" : ""} aria-current={!pricePage ? "page" : undefined} href="/">株式市場</a><a className={pricePage ? "current" : ""} aria-current={pricePage ? "page" : undefined} href="/prices">アイテム相場</a>{pricePage ? <><a href="#items">商品一覧</a><a href="#price-chart">チャート</a></> : <><button className={marketView === "charts" ? "current" : ""} onClick={() => showMarketView("charts")}>株価・チャート</button><button className={marketView === "ranking" ? "current" : ""} onClick={() => showMarketView("ranking")}>資産ランキング</button><button className={marketView === "trading" ? "current" : ""} onClick={() => showMarketView("trading")}>Web取引</button></>}</nav>
         <div className="connection"><span className={`pulse ${connection}`} />{connection === "live" ? "リアルタイム接続中" : connection === "connecting" ? "接続中…" : "再接続中…"}</div>
       </header>
 
@@ -114,19 +117,17 @@ export default function App() {
 
         {market.activeEvents.length > 0 && <News events={market.activeEvents} stocks={market.stocks} />}
 
-        {market.dailyReport && <DailyReport report={market.dailyReport} currency={market.currency} />}
+        <MarketViewSwitcher view={marketView} onChange={showMarketView} />
 
-        <RankingBoard ranking={market.ranking} currency={market.currency} season={market.season} />
+        {marketView === "charts" && <div className="market-view-content" id="market-dashboard">
+          {market.dailyReport && <DailyReport report={market.dailyReport} currency={market.currency} />}
+          <section className="stock-browser" id="market"><div className="section-heading"><div><span>MARKET BOARD</span><h2>銘柄を選んでチャートを見る</h2></div><p>カードを選択すると、下のチャートと指標が切り替わります。</p></div>
+          <div className="stock-grid" aria-label="銘柄一覧">
+            {market.stocks.map((stock, index) => <StockCard key={stock.id} index={index + 1} stock={stock} currency={market.currency} selected={stock.id === selectedId} onClick={() => setSelectedId(stock.id)} />)}
+            {market.stocks.length === 0 && <div className="empty">最初の市場スナップショットを待っています…</div>}
+          </div></section>
 
-        <WebTrading market={market} selected={selected} />
-
-        <div className="thread-title" id="market">銘柄一覧＠現在の株価</div>
-        <section className="stock-grid" aria-label="銘柄一覧">
-          {market.stocks.map((stock, index) => <StockCard key={stock.id} index={index + 1} stock={stock} currency={market.currency} selected={stock.id === selectedId} onClick={() => setSelectedId(stock.id)} />)}
-          {market.stocks.length === 0 && <div className="empty">最初の市場スナップショットを待っています…</div>}
-        </section>
-
-        {selected && <section className="chart-panel" id="chart">
+          {selected && <section className="chart-panel" id="chart">
           <div className="thread-title">【{selected.symbol}】{plain(selected.displayName)} 株価実況スレ</div>
           <div className="chart-heading">
             <div><p className="post-meta"><span>1</span> 名前：<b>名無しさん＠投資中</b> 投稿日：{dateTime(selected.updatedAt)} ID:{selected.symbol}</p><h2>{plain(selected.displayName)}の現在値を実況します</h2></div>
@@ -140,7 +141,12 @@ export default function App() {
             <Metric label="トレンド" value={trendLabel(selected.trend)} accent={selected.trend.toLowerCase()} />
             <Metric label="最終更新" value={dateTime(selected.updatedAt)} />
           </div>
-        </section>}
+          </section>}
+        </div>}
+
+        {marketView === "ranking" && <div className="market-view-content"><RankingBoard ranking={market.ranking} currency={market.currency} season={market.season} /></div>}
+
+        {marketView === "trading" && <div className="market-view-content"><section className="trade-stock-picker"><div><span>ORDER TARGET</span><h2>取引する銘柄を選択</h2></div><select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="取引銘柄">{market.stocks.map((stock) => <option value={stock.id} key={stock.id}>{stock.symbol} — {plain(stock.displayName)} / {money(stock.price)} {market.currency}</option>)}</select></section><WebTrading market={market} selected={selected} /></div>}
       </>}
       </main>
 
@@ -358,13 +364,33 @@ function DailyReport({ report, currency }: { report: DailyMarketReport; currency
   </section>;
 }
 
+function MarketViewSwitcher({ view, onChange }: { view: MarketView; onChange: (view: MarketView) => void }) {
+  const items: Array<{ id: MarketView; icon: string; title: string; description: string }> = [
+    { id: "charts", icon: "↗", title: "株価・チャート", description: "銘柄一覧と価格推移" },
+    { id: "ranking", icon: "♛", title: "資産ランキング", description: "資産内訳・税額・ROI" },
+    { id: "trading", icon: "⇄", title: "Web取引", description: "残高確認と売買注文" },
+  ];
+  return <section className="market-view-switcher" aria-label="表示内容を選択">
+    <div className="switcher-heading"><span>MARKET MENU</span><strong>見たい情報を選んでください</strong></div>
+    <div className="view-buttons" role="tablist">{items.map((item) => <button key={item.id} role="tab" aria-selected={view === item.id} className={view === item.id ? "active" : ""} onClick={() => onChange(item.id)}><i aria-hidden="true">{item.icon}</i><span><b>{item.title}</b><small>{item.description}</small></span></button>)}</div>
+  </section>;
+}
+
 function RankingBoard({ ranking, currency, season }: { ranking: MarketRanking | null; currency: string; season: SeasonState | null }) {
+  const [detail, setDetail] = useState<"assets" | "performance" | "tax">("assets");
   const number = ranking?.seasonNumber ?? season?.number;
+  const entries = ranking?.entries ?? [];
+  const amount = (value: number | undefined) => Number.isFinite(value) ? value! : 0;
+  const totalAssets = entries.reduce((sum, entry) => sum + amount(entry.totalAssets), 0);
+  const stockValue = entries.reduce((sum, entry) => sum + amount(entry.stockValue), 0);
+  const totalTax = entries.reduce((sum, entry) => sum + amount(entry.totalTax), 0);
   return <section className="ranking-board" id="ranking">
-    <div className="thread-title">【Season {number ?? "-"}】総損益ランキング</div>
-    <p className="ranking-note">{ranking?.finalized ? "シーズン最終順位です。" : "確定損益と現在保有株の含み損益を合計した暫定順位です。"} 株価更新に合わせて自動更新されます。</p>
-    {ranking?.entries.length ? <div className="ranking-scroll"><table className="ranking-table"><thead><tr><th>順位</th><th>プレイヤー</th><th>総資産</th><th>現金</th><th>株式評価額</th><th>シーズン利益</th><th>実現利益</th><th>総税額</th><th>ROI</th><th>取引回数</th></tr></thead><tbody>
-      {ranking.entries.map((entry) => <tr key={`${entry.rank}-${entry.playerName}`} className={entry.rank <= 3 ? `ranking-top ranking-${entry.rank}` : ""}><td data-label="順位"><span className="ranking-medal">{entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `${entry.rank}位`}</span></td><th scope="row">{entry.playerName}</th><td data-label="総資産">{money(entry.totalAssets)} {currency}</td><td data-label="現金">{money(entry.cash)}</td><td data-label="株式評価額">{money(entry.stockValue)}</td><td data-label="シーズン利益"><strong className={entry.seasonProfit >= 0 ? "positive" : "negative"}>{entry.seasonProfit >= 0 ? "+" : ""}{money(entry.seasonProfit)}</strong></td><td data-label="実現利益">{money(entry.realizedProfit)}</td><td data-label="総税額">{money(entry.totalTax)}</td><td data-label="ROI">{entry.roi.toFixed(2)}%</td><td data-label="取引回数">{entry.trades.toLocaleString("ja-JP")}回</td></tr>)}
+    <div className="ranking-hero"><div><span>SEASON {number ?? "—"} / WEALTH & PERFORMANCE</span><h2>資産ランキング</h2><p>{ranking?.finalized ? "確定したシーズン成績です。" : "総損益を基準にした暫定順位です。"} 資産の内訳や投資効率も確認できます。</p></div><div className="ranking-status"><i className={ranking?.finalized ? "final" : "live"} />{ranking?.finalized ? "最終結果" : "リアルタイム集計"}</div></div>
+    {entries.length > 0 && <><div className="ranking-summary"><div><span>参加プレイヤー</span><strong>{entries.length.toLocaleString("ja-JP")}人</strong></div><div><span>ランキング総資産</span><strong>{money(totalAssets)} <small>{currency}</small></strong></div><div><span>株式評価額</span><strong>{money(stockValue)} <small>{currency}</small></strong></div><div><span>税回収総額</span><strong>{money(totalTax)} <small>{currency}</small></strong></div></div>
+    <div className="ranking-podium">{entries.slice(0, 3).map((entry) => <article key={`podium-${entry.playerName}`} className={`podium-card podium-${entry.rank}`}><span className="podium-rank">{entry.rank === 1 ? "1st" : entry.rank === 2 ? "2nd" : "3rd"}</span><div className="podium-avatar">{entry.playerName.slice(0, 1).toUpperCase()}</div><h3>{entry.playerName}</h3><p>シーズン利益</p><strong className={amount(entry.seasonProfit) >= 0 ? "positive" : "negative"}>{amount(entry.seasonProfit) >= 0 ? "+" : ""}{money(amount(entry.seasonProfit))} <small>{currency}</small></strong><dl><div><dt>総資産</dt><dd>{money(amount(entry.totalAssets))}</dd></div><div><dt>ROI</dt><dd>{amount(entry.roi).toFixed(2)}%</dd></div></dl></article>)}</div></>}
+    <div className="ranking-toolbar"><div><span>表示するデータ</span><div className="ranking-detail-buttons"><button className={detail === "assets" ? "active" : ""} onClick={() => setDetail("assets")}>資産内訳</button><button className={detail === "performance" ? "active" : ""} onClick={() => setDetail("performance")}>投資成績</button><button className={detail === "tax" ? "active" : ""} onClick={() => setDetail("tax")}>税・取引</button></div></div><small>順位はシーズン総損益を基準にしています</small></div>
+    {entries.length ? <div className="ranking-scroll"><table className="ranking-table"><thead><tr><th>順位</th><th>プレイヤー</th>{detail === "assets" && <><th>総資産</th><th>現金</th><th>株式評価額</th></>}{detail === "performance" && <><th>シーズン利益</th><th>実現利益</th><th>ROI</th></>}{detail === "tax" && <><th>総税額</th><th>取引回数</th><th>実現利益</th></>}</tr></thead><tbody>
+      {entries.map((entry) => <tr key={`${entry.rank}-${entry.playerName}`} className={entry.rank <= 3 ? `ranking-top ranking-${entry.rank}` : ""}><td data-label="順位"><span className="ranking-medal">{entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `${entry.rank}位`}</span></td><th scope="row">{entry.playerName}</th>{detail === "assets" && <><td data-label="総資産"><strong>{money(amount(entry.totalAssets))}</strong> <small>{currency}</small></td><td data-label="現金">{money(amount(entry.cash))}</td><td data-label="株式評価額">{money(amount(entry.stockValue))}</td></>}{detail === "performance" && <><td data-label="シーズン利益"><strong className={amount(entry.seasonProfit) >= 0 ? "positive" : "negative"}>{amount(entry.seasonProfit) >= 0 ? "+" : ""}{money(amount(entry.seasonProfit))}</strong></td><td data-label="実現利益">{money(amount(entry.realizedProfit))}</td><td data-label="ROI"><b>{amount(entry.roi).toFixed(2)}%</b></td></>}{detail === "tax" && <><td data-label="総税額">{money(amount(entry.totalTax))}</td><td data-label="取引回数">{entry.trades.toLocaleString("ja-JP")}回</td><td data-label="実現利益">{money(amount(entry.realizedProfit))}</td></>}</tr>)}
     </tbody></table></div> : <div className="ranking-empty">{ranking ? "まだランキング対象の取引がありません。" : "MonaKabuからランキングデータが届くまでお待ちください。"}</div>}
     {ranking && <p className="ranking-updated">集計：{dateTime(ranking.updatedAt)} / {ranking.entries.length}名を表示</p>}
   </section>;
