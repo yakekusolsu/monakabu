@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,11 @@ public final class TradingRepository {
     public record PreparedBuy(String transactionId, UUID uuid, String stockId, long seasonId, long shares,
                               BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal net) {}
     public record SellCommit(long resultingShares, BigDecimal realizedProfit, String paymentId) {}
+    public record LotPortion(long lotId, long shares, BigDecimal unitCost, Instant purchasedAt) {}
+    public record SaleQuote(long eligibleShares, BigDecimal basis, List<LotPortion> portions) {}
+    public record SeasonEconomy(BigDecimal realizedProfit, BigDecimal realizedLoss, BigDecimal feesPaid,
+                                BigDecimal taxesPaid, BigDecimal shortTermTax, BigDecimal progressiveTax,
+                                BigDecimal carryoverWithheld) {}
     public record StoredTransaction(String transactionId, UUID uuid, String stockId, long seasonId,
                                     TransactionType type, TransactionStatus status, long shares,
                                     BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal tax, BigDecimal net) {}
@@ -111,7 +117,38 @@ public final class TradingRepository {
             if (statement.executeUpdate() != 1) throw new IllegalStateException("BUY_ALREADY_COMPLETED");
         }
         updatePlayerStats(connection, buy.uuid(), TransactionType.BUY, buy.gross(), Money.ZERO);
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO stock_lots(uuid,stock_id,season_id,source_transaction_id,remaining_shares,unit_cost,purchased_at) VALUES(?,?,?,?,?,?,?)")) {
+            statement.setString(1,buy.uuid().toString());statement.setString(2,buy.stockId());statement.setLong(3,buy.seasonId());
+            statement.setString(4,buy.transactionId());statement.setLong(5,buy.shares());statement.setBigDecimal(6,buy.price());statement.setLong(7,Instant.now().toEpochMilli());statement.executeUpdate();
+        }
+        addSeasonEconomy(connection,buy.seasonId(),buy.uuid(),Money.ZERO,Money.ZERO,buy.fee(),Money.ZERO,Money.ZERO,Money.ZERO);
         return resulting;
+    }
+
+    /** FIFO quote. Shares not represented by a lot predate v2 and are treated as fully matured. */
+    public SaleQuote quoteSale(Connection connection, UUID uuid, String stockId, long seasonId, long requested,
+                               Instant now, Duration minimumHold) throws SQLException {
+        PortfolioPosition position=position(connection,uuid,stockId,seasonId).orElseThrow(()->new IllegalStateException("NOT_ENOUGH_SHARES"));
+        List<LotPortion> lots=new ArrayList<>();long tracked=0;
+        try(PreparedStatement statement=connection.prepareStatement("SELECT lot_id,remaining_shares,unit_cost,purchased_at FROM stock_lots WHERE uuid=? AND stock_id=? AND season_id=? AND remaining_shares>0 ORDER BY purchased_at,lot_id")){
+            statement.setString(1,uuid.toString());statement.setString(2,stockId);statement.setLong(3,seasonId);
+            try(ResultSet rs=statement.executeQuery()){while(rs.next()){long amount=rs.getLong(2);tracked=Math.addExact(tracked,amount);lots.add(new LotPortion(rs.getLong(1),amount,rs.getBigDecimal(3),Instant.ofEpochMilli(rs.getLong(4))));}}
+        }
+        long legacy=Math.max(0,position.shares()-tracked);long eligible=legacy;
+        for(LotPortion lot:lots)if(!lot.purchasedAt().plus(minimumHold).isAfter(now))eligible=Math.addExact(eligible,lot.shares());
+        if(requested<=0||requested>position.shares())throw new IllegalStateException("NOT_ENOUGH_SHARES");
+        if(requested>eligible)throw new IllegalStateException("MINIMUM_HOLD");
+        long remaining=requested;BigDecimal basis=Money.ZERO;List<LotPortion> used=new ArrayList<>();
+        long legacyUsed=Math.min(legacy,remaining);if(legacyUsed>0){basis=basis.add(position.averageCost().multiply(BigDecimal.valueOf(legacyUsed)));remaining-=legacyUsed;}
+        for(LotPortion lot:lots){if(remaining==0)break;if(lot.purchasedAt().plus(minimumHold).isAfter(now))continue;long take=Math.min(remaining,lot.shares());used.add(new LotPortion(lot.lotId(),take,lot.unitCost(),lot.purchasedAt()));basis=basis.add(lot.unitCost().multiply(BigDecimal.valueOf(take)));remaining-=take;}
+        if(remaining!=0)throw new IllegalStateException("MINIMUM_HOLD");
+        return new SaleQuote(eligible,Money.normalize(basis),List.copyOf(used));
+    }
+
+    public SeasonEconomy seasonEconomy(Connection connection,long seasonId,UUID uuid)throws SQLException{
+        try(PreparedStatement s=connection.prepareStatement("SELECT realized_profit,realized_loss,fees_paid,taxes_paid,short_term_tax,progressive_tax,carryover_withheld FROM season_player_economy WHERE season_id=? AND uuid=?")){
+            s.setLong(1,seasonId);s.setString(2,uuid.toString());try(ResultSet r=s.executeQuery()){if(r.next())return new SeasonEconomy(r.getBigDecimal(1),r.getBigDecimal(2),r.getBigDecimal(3),r.getBigDecimal(4),r.getBigDecimal(5),r.getBigDecimal(6),r.getBigDecimal(7));}
+        }return new SeasonEconomy(Money.ZERO,Money.ZERO,Money.ZERO,Money.ZERO,Money.ZERO,Money.ZERO,Money.ZERO);
     }
 
     public void markBuyEconomyApplied(Connection connection, String txId) throws SQLException {
@@ -148,11 +185,18 @@ public final class TradingRepository {
 
     public SellCommit commitSell(Connection connection, String txId, UUID uuid, String stockId, long seasonId, long shares,
                                  BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal tax, BigDecimal net) throws SQLException {
+        PortfolioPosition current=position(connection,uuid,stockId,seasonId).orElseThrow(()->new IllegalStateException("NOT_ENOUGH_SHARES"));
+        return commitSell(connection,txId,uuid,stockId,seasonId,shares,price,gross,fee,tax,net,
+                Money.normalize(current.averageCost().multiply(BigDecimal.valueOf(shares))),Money.ZERO,tax);
+    }
+
+    public SellCommit commitSell(Connection connection, String txId, UUID uuid, String stockId, long seasonId, long shares,
+                                 BigDecimal price, BigDecimal gross, BigDecimal fee, BigDecimal tax, BigDecimal net,
+                                 BigDecimal basis, BigDecimal shortTermTax, BigDecimal progressiveTax) throws SQLException {
         requireOpenSeason(connection, seasonId);
         PortfolioPosition current = position(connection, uuid, stockId, seasonId).orElseThrow(() -> new IllegalStateException("NOT_ENOUGH_SHARES"));
         if (shares <= 0 || shares > current.shares()) throw new IllegalStateException("NOT_ENOUGH_SHARES");
         long resulting = current.shares() - shares;
-        BigDecimal basis = current.averageCost().multiply(BigDecimal.valueOf(shares));
         BigDecimal realized = Money.normalize(net.subtract(basis));
         try (PreparedStatement statement = connection.prepareStatement("INSERT INTO transactions(transaction_id,uuid,stock_id,type,shares,price,gross,fee,tax,net,occurred_at,season_id,status,metadata) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
             bindTransaction(statement, txId, uuid, stockId, TransactionType.SELL, shares, price, gross, fee, tax, net,
@@ -163,7 +207,27 @@ public final class TradingRepository {
         String paymentId = "PAY-" + txId;
         insertPayment(connection, paymentId, uuid, net, "TRADE", txId, seasonId);
         updatePlayerStats(connection, uuid, TransactionType.SELL, gross, realized);
+        consumeLots(connection,uuid,stockId,seasonId,shares);
+        addSeasonEconomy(connection,seasonId,uuid,realized.max(Money.ZERO),realized.min(Money.ZERO).abs(),fee,tax,shortTermTax,progressiveTax);
         return new SellCommit(resulting, realized, paymentId);
+    }
+
+    private void consumeLots(Connection c,UUID uuid,String stockId,long seasonId,long shares)throws SQLException{
+        PortfolioPosition after=position(c,uuid,stockId,seasonId).orElseThrow();long tracked=0;
+        List<long[]> rows=new ArrayList<>();try(PreparedStatement s=c.prepareStatement("SELECT lot_id,remaining_shares FROM stock_lots WHERE uuid=? AND stock_id=? AND season_id=? AND remaining_shares>0 ORDER BY purchased_at,lot_id")){
+            s.setString(1,uuid.toString());s.setString(2,stockId);s.setLong(3,seasonId);try(ResultSet r=s.executeQuery()){while(r.next()){rows.add(new long[]{r.getLong(1),r.getLong(2)});tracked+=r.getLong(2);}}
+        }
+        long legacyBefore=Math.max(0,after.shares()+shares-tracked);long remaining=Math.max(0,shares-legacyBefore);
+        try(PreparedStatement u=c.prepareStatement("UPDATE stock_lots SET remaining_shares=? WHERE lot_id=?")){for(long[] row:rows){if(remaining==0)break;long take=Math.min(remaining,row[1]);u.setLong(1,row[1]-take);u.setLong(2,row[0]);u.addBatch();remaining-=take;}u.executeBatch();}
+    }
+
+    private void addSeasonEconomy(Connection c,long seasonId,UUID uuid,BigDecimal profit,BigDecimal loss,BigDecimal fees,BigDecimal taxes,BigDecimal shortTax,BigDecimal progressive)throws SQLException{
+        try(PreparedStatement u=c.prepareStatement("UPDATE season_player_economy SET realized_profit=realized_profit+?,realized_loss=realized_loss+?,fees_paid=fees_paid+?,taxes_paid=taxes_paid+?,short_term_tax=short_term_tax+?,progressive_tax=progressive_tax+? WHERE season_id=? AND uuid=?")){
+            u.setBigDecimal(1,profit);u.setBigDecimal(2,loss);u.setBigDecimal(3,fees);u.setBigDecimal(4,taxes);u.setBigDecimal(5,shortTax);u.setBigDecimal(6,progressive);u.setLong(7,seasonId);u.setString(8,uuid.toString());if(u.executeUpdate()>0)return;
+        }
+        try(PreparedStatement i=c.prepareStatement("INSERT INTO season_player_economy(season_id,uuid,realized_profit,realized_loss,fees_paid,taxes_paid,short_term_tax,progressive_tax) VALUES(?,?,?,?,?,?,?,?)")){
+            i.setLong(1,seasonId);i.setString(2,uuid.toString());i.setBigDecimal(3,profit);i.setBigDecimal(4,loss);i.setBigDecimal(5,fees);i.setBigDecimal(6,taxes);i.setBigDecimal(7,shortTax);i.setBigDecimal(8,progressive);i.executeUpdate();
+        }
     }
 
     public List<String> incompleteEconomyAppliedBuys(Connection connection) throws SQLException {

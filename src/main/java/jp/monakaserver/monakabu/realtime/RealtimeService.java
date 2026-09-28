@@ -9,6 +9,9 @@ import jp.monakaserver.monakabu.config.ConfigManager;
 import jp.monakaserver.monakabu.database.DatabaseManager;
 import jp.monakaserver.monakabu.database.repository.RealtimeOutboxRepository;
 import jp.monakaserver.monakabu.database.repository.SettlementRepository;
+import jp.monakaserver.monakabu.economy.EconomyService;
+import jp.monakaserver.monakabu.util.MainThread;
+import jp.monakaserver.monakabu.util.Money;
 import jp.monakaserver.monakabu.market.MarketEventService;
 import jp.monakaserver.monakabu.market.StockRegistry;
 import jp.monakaserver.monakabu.model.ActiveMarketEvent;
@@ -57,6 +60,7 @@ public final class RealtimeService implements Listener, AutoCloseable {
     private final StockRegistry stocks;
     private final MarketEventService marketEvents;
     private final SeasonService seasons;
+    private final EconomyService economy;
     private final HttpClient client;
     private final AtomicBoolean dispatching = new AtomicBoolean();
 
@@ -75,7 +79,7 @@ public final class RealtimeService implements Listener, AutoCloseable {
 
     public RealtimeService(JavaPlugin plugin, ConfigManager configs, DatabaseManager database,
                            RealtimeOutboxRepository outbox, SettlementRepository rankings, StockRegistry stocks,
-                           MarketEventService marketEvents, SeasonService seasons) {
+                           MarketEventService marketEvents, SeasonService seasons,EconomyService economy) {
         this.plugin = plugin;
         this.configs = configs;
         this.database = database;
@@ -84,6 +88,7 @@ public final class RealtimeService implements Listener, AutoCloseable {
         this.stocks = stocks;
         this.marketEvents = marketEvents;
         this.seasons = seasons;
+        this.economy=economy;
         this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     }
 
@@ -171,6 +176,7 @@ public final class RealtimeService implements Listener, AutoCloseable {
         database.read(connection -> season.status() == jp.monakaserver.monakabu.model.MarketStatus.CLOSED
                         ? rankings.ranking(connection, season.id(), limit)
                         : rankings.liveRanking(connection, season.id(), limit))
+                .thenCompose(entries->MainThread.call(plugin,()->entries.stream().map(entry->entry.withCash(Money.of(Math.max(0,economy.balance(Bukkit.getOfflinePlayer(entry.playerId())))))).toList()))
                 .thenAccept(entries -> publishSnapshot(season, entries))
                 .exceptionally(error -> {
                     plugin.getLogger().log(Level.WARNING, "Realtime ranking snapshot could not be loaded", error);
@@ -338,6 +344,8 @@ public final class RealtimeService implements Listener, AutoCloseable {
             value.put("playerName", entry.playerName());
             value.put("profit", entry.realizedProfit());
             value.put("trades", entry.trades());
+            value.put("cash",entry.cash());value.put("stockValue",entry.stockValue());value.put("totalAssets",entry.totalAssets());
+            value.put("seasonProfit",entry.seasonProfit());value.put("realizedProfit",entry.realizedProfit());value.put("totalTax",entry.totalTax());value.put("roi",entry.roi());
             values.add(value);
         }
         data.put("entries", values);

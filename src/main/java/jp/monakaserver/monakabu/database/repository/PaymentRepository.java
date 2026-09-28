@@ -13,6 +13,9 @@ import java.util.UUID;
 public final class PaymentRepository {
     public enum State { PENDING, PROCESSING, PAID, REVIEW_REQUIRED }
     public record Payment(String id, UUID uuid, BigDecimal amount, String reason, String referenceId, long seasonId) {}
+    public record Charge(String id,UUID uuid,BigDecimal remaining){}
+    public Charge nextCharge(Connection c,UUID uuid)throws SQLException{try(PreparedStatement s=c.prepareStatement("SELECT charge_id,remaining FROM pending_charges WHERE uuid=? AND paid_at IS NULL AND remaining>0 ORDER BY created_at LIMIT 1")){s.setString(1,uuid.toString());try(ResultSet r=s.executeQuery()){return r.next()?new Charge(r.getString(1),uuid,r.getBigDecimal(2)):null;}}}
+    public void applyCharge(Connection c,String id,BigDecimal amount)throws SQLException{try(PreparedStatement s=c.prepareStatement("UPDATE pending_charges SET remaining=CASE WHEN remaining>? THEN remaining-? ELSE 0 END,paid_at=CASE WHEN remaining<=? THEN ? ELSE paid_at END WHERE charge_id=? AND paid_at IS NULL")){s.setBigDecimal(1,amount);s.setBigDecimal(2,amount);s.setBigDecimal(3,amount);s.setLong(4,Instant.now().toEpochMilli());s.setString(5,id);s.executeUpdate();}}
 
     public List<Payment> claimForPlayer(Connection connection, UUID uuid, int limit) throws SQLException {
         List<String> ids = new ArrayList<>();

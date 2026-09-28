@@ -4,6 +4,7 @@ import jp.monakaserver.monakabu.model.RankingEntry;
 import jp.monakaserver.monakabu.model.TransactionStatus;
 import jp.monakaserver.monakabu.model.TransactionType;
 import jp.monakaserver.monakabu.trading.TradeIds;
+import jp.monakaserver.monakabu.trading.InflationPolicy;
 import jp.monakaserver.monakabu.util.Money;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -58,6 +59,7 @@ public final class SettlementRepository {
                 if (statement.executeUpdate() != 1) throw new SQLException("Concurrent portfolio modification during settlement");
             }
             updatePlayer(connection, row.uuid(), gross, realized);
+            addEconomy(connection,seasonId,row.uuid(),realized,fee,tax);
             grossTotal = grossTotal.add(gross); feeTotal = feeTotal.add(fee); taxTotal = taxTotal.add(tax);
         }
         return new BatchResult(rows.size(), Money.normalize(grossTotal), Money.normalize(feeTotal), Money.normalize(taxTotal),List.copyOf(payouts));
@@ -90,12 +92,20 @@ public final class SettlementRepository {
         }
     }
 
+    private void addEconomy(Connection c,long seasonId,UUID uuid,BigDecimal realized,BigDecimal fee,BigDecimal tax)throws SQLException{
+        BigDecimal profit=realized.max(Money.ZERO),loss=realized.min(Money.ZERO).abs();try(PreparedStatement u=c.prepareStatement("UPDATE season_player_economy SET realized_profit=realized_profit+?,realized_loss=realized_loss+?,fees_paid=fees_paid+?,taxes_paid=taxes_paid+? WHERE season_id=? AND uuid=?")){u.setBigDecimal(1,profit);u.setBigDecimal(2,loss);u.setBigDecimal(3,fee);u.setBigDecimal(4,tax);u.setLong(5,seasonId);u.setString(6,uuid.toString());if(u.executeUpdate()>0)return;}try(PreparedStatement i=c.prepareStatement("INSERT INTO season_player_economy(season_id,uuid,realized_profit,realized_loss,fees_paid,taxes_paid) VALUES(?,?,?,?,?,?)")){i.setLong(1,seasonId);i.setString(2,uuid.toString());i.setBigDecimal(3,profit);i.setBigDecimal(4,loss);i.setBigDecimal(5,fee);i.setBigDecimal(6,tax);i.executeUpdate();}
+    }
+
+    public List<UUID> createCarryoverCharges(Connection c,long seasonId,InflationPolicy policy)throws SQLException{
+        List<UUID> players=new ArrayList<>();try(PreparedStatement s=c.prepareStatement("SELECT uuid,realized_profit-realized_loss FROM season_player_economy WHERE season_id=?")){s.setLong(1,seasonId);try(ResultSet r=s.executeQuery()){while(r.next()){UUID uuid=UUID.fromString(r.getString(1));BigDecimal withheld=policy.carryoverWithholding(r.getBigDecimal(2));if(withheld.signum()<=0)continue;String id="CARRYOVER-"+seasonId+"-"+uuid;try(PreparedStatement i=c.prepareStatement("INSERT INTO pending_charges(charge_id,uuid,amount,remaining,reason,season_id,created_at) VALUES(?,?,?,?,?,?,?)")){i.setString(1,id);i.setString(2,uuid.toString());i.setBigDecimal(3,withheld);i.setBigDecimal(4,withheld);i.setString(5,"SEASON_CARRYOVER");i.setLong(6,seasonId);i.setLong(7,Instant.now().toEpochMilli());try{i.executeUpdate();players.add(uuid);}catch(SQLException duplicate){try(PreparedStatement check=c.prepareStatement("SELECT 1 FROM pending_charges WHERE charge_id=?")){check.setString(1,id);try(ResultSet cr=check.executeQuery()){if(!cr.next())throw duplicate;}}}}try(PreparedStatement u=c.prepareStatement("UPDATE season_player_economy SET carryover_withheld=? WHERE season_id=? AND uuid=?")){u.setBigDecimal(1,withheld);u.setLong(2,seasonId);u.setString(3,uuid.toString());u.executeUpdate();}}}}return players;
+    }
+
     public List<RankingEntry> ranking(Connection connection, long seasonId, int limit) throws SQLException {
         List<RankingEntry> result = new ArrayList<>();
-        try (PreparedStatement statement = connection.prepareStatement("SELECT r.uuid,p.last_name,r.realized_profit,r.trades,r.rank_profit FROM season_results r JOIN players p ON p.uuid=r.uuid WHERE r.season_id=? ORDER BY r.rank_profit LIMIT ?")) {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT r.uuid,p.last_name,r.realized_profit,r.trades,r.rank_profit,COALESCE(e.taxes_paid+e.carryover_withheld,0),r.profit_rate FROM season_results r JOIN players p ON p.uuid=r.uuid LEFT JOIN season_player_economy e ON e.uuid=r.uuid AND e.season_id=r.season_id WHERE r.season_id=? ORDER BY r.rank_profit LIMIT ?")) {
             statement.setLong(1, seasonId); statement.setInt(2, limit);
             try (ResultSet rs = statement.executeQuery()) {
-                while (rs.next()) result.add(new RankingEntry(UUID.fromString(rs.getString(1)), rs.getString(2), rs.getBigDecimal(3), rs.getLong(4), rs.getInt(5)));
+                while (rs.next()) result.add(new RankingEntry(UUID.fromString(rs.getString(1)),rs.getString(2),rs.getBigDecimal(3),rs.getLong(4),rs.getInt(5),Money.ZERO,Money.ZERO,Money.ZERO,rs.getBigDecimal(3),rs.getBigDecimal(6),rs.getBigDecimal(7)));
             }
         }
         return result;
@@ -103,11 +113,11 @@ public final class SettlementRepository {
 
     public List<RankingEntry> liveRanking(Connection connection, long seasonId, int limit) throws SQLException {
         List<RankingEntry> result = new ArrayList<>();
-        try (PreparedStatement statement = connection.prepareStatement("SELECT p.uuid,p.last_name,COALESCE(SUM(po.realized_profit + po.shares*(s.current_price-po.average_cost)),0) AS profit,COALESCE(MAX((SELECT COUNT(*) FROM transactions t WHERE t.uuid=p.uuid AND t.season_id=? AND t.status=?)),0) AS trades FROM players p JOIN portfolios po ON po.uuid=p.uuid AND po.season_id=? JOIN stocks s ON s.stock_id=po.stock_id GROUP BY p.uuid,p.last_name ORDER BY profit DESC LIMIT ?")) {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT p.uuid,p.last_name,COALESCE(SUM(po.realized_profit + po.shares*(s.current_price-po.average_cost)),0) AS profit,COALESCE(MAX((SELECT COUNT(*) FROM transactions t WHERE t.uuid=p.uuid AND t.season_id=? AND t.status=?)),0) AS trades,COALESCE(SUM(po.shares*s.current_price),0) stock_value,COALESCE(MAX(e.realized_profit-e.realized_loss),0) realized,COALESCE(MAX(e.taxes_paid),0) taxes,COALESCE(SUM(po.invested),0) invested FROM players p JOIN portfolios po ON po.uuid=p.uuid AND po.season_id=? JOIN stocks s ON s.stock_id=po.stock_id LEFT JOIN season_player_economy e ON e.uuid=p.uuid AND e.season_id=po.season_id GROUP BY p.uuid,p.last_name ORDER BY profit DESC LIMIT ?")) {
             statement.setLong(1, seasonId); statement.setString(2, TransactionStatus.COMPLETED.name()); statement.setLong(3, seasonId); statement.setInt(4, limit);
             try (ResultSet rs = statement.executeQuery()) {
                 int rank = 1;
-                while (rs.next()) result.add(new RankingEntry(UUID.fromString(rs.getString(1)), rs.getString(2), rs.getBigDecimal(3), rs.getLong(4), rank++));
+                while (rs.next()){BigDecimal profit=rs.getBigDecimal(3),invested=rs.getBigDecimal(8);BigDecimal roi=invested.signum()==0?Money.ZERO:profit.multiply(BigDecimal.valueOf(100)).divide(invested,2,RoundingMode.HALF_UP);result.add(new RankingEntry(UUID.fromString(rs.getString(1)),rs.getString(2),rs.getBigDecimal(6),rs.getLong(4),rank++,Money.ZERO,rs.getBigDecimal(5),rs.getBigDecimal(5),profit,rs.getBigDecimal(7),roi));}
             }
         }
         return result;

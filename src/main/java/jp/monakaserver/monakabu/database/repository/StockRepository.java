@@ -96,6 +96,11 @@ public final class StockRepository {
         return prices;
     }
 
+    public BigDecimal priceAt(Connection connection,String stockId,long timestamp)throws SQLException{
+        try(PreparedStatement s=connection.prepareStatement("SELECT price FROM stock_prices WHERE stock_id=? AND recorded_at<=? ORDER BY recorded_at DESC LIMIT 1")){s.setString(1,stockId);s.setLong(2,timestamp);try(ResultSet r=s.executeQuery()){if(r.next())return r.getBigDecimal(1);}}
+        try(PreparedStatement s=connection.prepareStatement("SELECT price FROM stock_prices WHERE stock_id=? ORDER BY recorded_at ASC LIMIT 1")){s.setString(1,stockId);try(ResultSet r=s.executeQuery()){return r.next()?r.getBigDecimal(1):null;}}
+    }
+
     public int pruneHistory(Connection connection, long before) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("DELETE FROM stock_prices WHERE recorded_at<?")) {
             statement.setLong(1, before);

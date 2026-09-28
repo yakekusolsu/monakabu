@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +49,15 @@ class DatabaseIntegrationTest {
                 BigDecimal.ONE, BigDecimal.valueOf(2001), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.valueOf(2001)))
                 .hasMessage("NOT_ENOUGH_SHARES");
         assertThat(count("pending_payments")).isEqualTo(1);
+    }
+
+    @Test void v2LotsEnforceMinimumHoldWhileLegacySharesRemainSellable()throws Exception{
+        TradingRepository trades=new TradingRepository();var buy=trades.prepareBuy(connection,"BUY-LOT",player,"mona",1,5,BigDecimal.valueOf(1000),BigDecimal.valueOf(5000),BigDecimal.ZERO,BigDecimal.valueOf(5000),1000,BigDecimal.ZERO);trades.markBuyEconomyApplied(connection,buy.transactionId());trades.completeBuy(connection,buy);
+        assertThatThrownBy(()->trades.quoteSale(connection,player,"mona",1,1,Instant.now(),Duration.ofMinutes(5))).hasMessage("MINIMUM_HOLD");
+        try(PreparedStatement s=connection.prepareStatement("UPDATE stock_lots SET purchased_at=? WHERE source_transaction_id='BUY-LOT'")){s.setLong(1,Instant.now().minus(Duration.ofMinutes(6)).toEpochMilli());s.executeUpdate();}
+        assertThat(trades.quoteSale(connection,player,"mona",1,5,Instant.now(),Duration.ofMinutes(5)).eligibleShares()).isEqualTo(5);
+        UUID legacy=UUID.randomUUID();new PlayerRepository().upsert(connection,legacy,"Legacy");try(PreparedStatement s=connection.prepareStatement("INSERT INTO portfolios(uuid,stock_id,season_id,shares,average_cost,invested,realized_profit,version,updated_at) VALUES(?,'mona',1,3,900,2700,0,1,?)")){s.setString(1,legacy.toString());s.setLong(2,Instant.now().toEpochMilli());s.executeUpdate();}
+        assertThat(trades.quoteSale(connection,legacy,"mona",1,3,Instant.now(),Duration.ofMinutes(5)).eligibleShares()).isEqualTo(3);
     }
 
     @Test void removingShareCapDoesNotRemoveInvestmentLimit() {

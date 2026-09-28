@@ -17,7 +17,7 @@ NMS は使用していません。メッセージとGUI名は Adventure MiniMess
 
 ## インストール
 
-1. `build/libs/MonaKabu-1.2.0.jar` を `plugins/` へ配置します。
+1. `build/libs/MonaKabu-2.0.0.jar` を `plugins/` へ配置します。
 2. Vault と経済プラグインを導入します。
 3. Paper を起動し、`plugins/MonaKabu/` に設定ファイルを生成します。
 4. `config.yml`、`stocks.yml`、必要に応じて `events.yml` と `gui.yml` を編集します。
@@ -35,7 +35,7 @@ Windows:
 .\gradlew.bat build
 ```
 
-Gradle toolchain が Java 21 を自動取得します。成果物は `build/libs/MonaKabu-1.2.0.jar` です。
+Gradle toolchain が Java 21 を自動取得します。成果物は `build/libs/MonaKabu-2.0.0.jar` です。
 
 ## シーズンと隔週日曜日決済
 
@@ -137,21 +137,11 @@ market-events:
 
 ## 手数料、税、上限
 
-```yaml
-fees:
-  buy: {percent: 1.0}
-  sell: {percent: 2.0}
-capital-gains-tax:
-  enabled: true
-  percent: 10.0
-limits:
-  max-shares-per-stock: 0 # 0 = 個数上限なし
-  max-total-investment: 0 # 0 = 投資上限なし（手数料込みの残高検証は維持）
-```
+v2では `trading-rules` が取引ルールの正本です。標準値は1注文100株・1銘柄1,000株・最低保有5分、購入2%・売却3%です。購入ロットをFIFOで管理し、5分～6時間の利益には保有時間別税、シーズン実現利益には限界税率方式の累進税を適用します。損失部分には課税しません。
 
-売却税は移動平均取得単価から計算した利益部分だけに適用します。損失売却に税はかかりません。LuckPerms等から `monakabu.limit.shares.5000`、`monakabu.limit.investment.50000000` を付与すると、そのプレイヤーの上限を引き上げられます。
+注文量に応じたスリッページと大口売却税、現金＋株式評価額による4段階の資産Tierも適用されます。24時間値幅は標準±25%、10分・30分・1時間の履歴を使う3段階サーキットブレーカーを備えます。シーズン終了時は全株を自動決済し、純利益だけを対象に段階的な持越率を適用します。未回収額は `pending_charges` に保存され、次回ログイン・支払時にも安全に回収されます。
 
-サーキットブレーカー、値幅制限、倒産は `config.yml` で変更できます。倒産は標準で無効です。
+旧バージョンから引き継いだ保有株は購入時刻が存在しないため、互換性維持のため6時間以上保有済みとして移行します。全ての率・閾値は `config.yml` で変更できます。
 
 ## GUI
 

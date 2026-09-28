@@ -10,6 +10,7 @@ import jp.monakaserver.monakabu.model.StockSnapshot;
 import jp.monakaserver.monakabu.model.Trend;
 import jp.monakaserver.monakabu.util.DurationParser;
 import jp.monakaserver.monakabu.util.MainThread;
+import jp.monakaserver.monakabu.trading.InflationPolicy;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,13 +29,14 @@ import org.bukkit.scheduler.BukkitTask;
 public final class MarketService {
     private final JavaPlugin plugin; private final ConfigManager configs; private final DatabaseManager database; private final StockRepository repository;
     private final StockRegistry registry; private final MarketEventService events; private final Supplier<Season> seasonSupplier;
+    private final InflationPolicy policy;
     private final AtomicBoolean updating = new AtomicBoolean();
     private volatile PriceEngine engine; private volatile Duration updateInterval; private volatile Instant nextTrendChange=Instant.EPOCH;
     private BukkitTask priceTask; private BukkitTask eventTask;private BukkitTask cleanupTask;
 
     public MarketService(JavaPlugin plugin, ConfigManager configs, DatabaseManager database, StockRepository repository,
                          StockRegistry registry, MarketEventService events, Supplier<Season> seasonSupplier) {
-        this.plugin=plugin;this.configs=configs;this.database=database;this.repository=repository;this.registry=registry;this.events=events;this.seasonSupplier=seasonSupplier;
+        this.plugin=plugin;this.configs=configs;this.database=database;this.repository=repository;this.registry=registry;this.events=events;this.seasonSupplier=seasonSupplier;this.policy=new InflationPolicy(configs);
         reloadSettings();
     }
 
@@ -63,15 +65,13 @@ public final class MarketService {
         if(!now.isBefore(nextTrendChange)) changeTrends(now);
         Map<String,StockSnapshot> old=new HashMap<>(); ArrayList<StockSnapshot> changed=new ArrayList<>();
         try {
+            Map<String,Map<Long,BigDecimal>> references=database.read(c->{Map<String,Map<Long,BigDecimal>> all=new HashMap<>();for(StockSnapshot s:registry.all()){Map<Long,BigDecimal> values=new HashMap<>();values.put(86_400L,repository.priceAt(c,s.definition().id(),now.minus(Duration.ofDays(1)).toEpochMilli()));for(InflationPolicy.CircuitWindow w:policy.circuitWindows())values.put(w.window().toSeconds(),repository.priceAt(c,s.definition().id(),now.minus(w.window()).toEpochMilli()));all.put(s.definition().id(),values);}return all;}).join();
             for(StockSnapshot snapshot:registry.all()){
-                old.put(snapshot.definition().id(),snapshot); if(snapshot.bankrupt())continue;
+                old.put(snapshot.definition().id(),snapshot); if(snapshot.bankrupt()||snapshot.halted(now))continue;
                 BigDecimal next=engine.next(snapshot,updateInterval,events.factorFor(snapshot.definition().id(),updateInterval,now),ThreadLocalRandom.current());
+                BigDecimal daily=references.get(snapshot.definition().id()).get(86_400L);if(daily!=null&&daily.signum()>0){BigDecimal ratio=BigDecimal.valueOf(policy.dailyPriceLimit()/100d);BigDecimal low=daily.multiply(BigDecimal.ONE.subtract(ratio)),high=daily.multiply(BigDecimal.ONE.add(ratio));next=next.max(low).min(high).max(snapshot.definition().minPrice()).min(snapshot.definition().maxPrice());}
                 StockSnapshot updated=registry.updatePrice(snapshot.definition().id(),next,now);
-                double delta=Math.abs(updated.changePercent());
-                if(configs.config().getBoolean("circuit-breaker.enabled",true)&&delta>=configs.config().getDouble("circuit-breaker.change-percent",30)){
-                    registry.halt(snapshot.definition().id(),now.plus(DurationParser.parse(configs.config().getString("circuit-breaker.cooldown","10m"))));
-                    updated=registry.find(snapshot.definition().id()).orElseThrow();
-                }
+                Duration halt=Duration.ZERO;for(InflationPolicy.CircuitWindow window:policy.circuitWindows()){BigDecimal ref=references.get(snapshot.definition().id()).get(window.window().toSeconds());if(ref!=null&&ref.signum()>0&&change(ref,updated.price())>=window.changePercent()&&window.cooldown().compareTo(halt)>0)halt=window.cooldown();}if(!halt.isZero()){registry.halt(snapshot.definition().id(),now.plus(halt));updated=registry.find(snapshot.definition().id()).orElseThrow();}
                 if(configs.config().getBoolean("bankruptcy.enabled",false)&&updated.price().doubleValue()<=configs.config().getDouble("bankruptcy.threshold",25)
                         &&ThreadLocalRandom.current().nextDouble()<configs.config().getDouble("bankruptcy.chance-per-update",.005)){
                     registry.bankrupt(snapshot.definition().id(),now);updated=registry.find(snapshot.definition().id()).orElseThrow();
@@ -110,5 +110,7 @@ public final class MarketService {
             throw new IllegalArgumentException("Price must be between "+stock.definition().minPrice().toPlainString()+" and "+stock.definition().maxPrice().toPlainString());
         }
     }
+
+    private static double change(BigDecimal before,BigDecimal after){return after.subtract(before).abs().multiply(BigDecimal.valueOf(100)).divide(before,8,java.math.RoundingMode.HALF_UP).doubleValue();}
     private void requireOpen(java.sql.Connection connection,long seasonId)throws java.sql.SQLException{try(var statement=connection.prepareStatement("SELECT status FROM seasons WHERE season_id=?")){statement.setLong(1,seasonId);try(var rs=statement.executeQuery()){if(!rs.next()||!"OPEN".equals(rs.getString(1)))throw new IllegalStateException("MARKET_CLOSED_DURING_PRICE_UPDATE");}}}
 }

@@ -73,6 +73,52 @@ capital-gains-tax:
   enabled: true
   percent: 10.0
 
+# MonaKabu v2 インフレ対策。すべてリロード可能で、値はハードコードされません。
+trading-rules:
+  order-limit: 100
+  max-shares-per-stock: 1000
+  minimum-hold: 5m
+  fees:
+    buy-percent: 2.0
+    sell-percent: 3.0
+  slippage:
+    up-to-10: 0.0
+    up-to-25: 0.5
+    up-to-50: 1.0
+    up-to-75: 2.0
+    up-to-100: 3.0
+  large-sell-fee:
+    up-to-25: 0.0
+    up-to-50: 1.0
+    up-to-75: 3.0
+    up-to-100: 5.0
+  short-term-tax:
+    under-30m: 20.0
+    under-1h: 15.0
+    under-6h: 10.0
+  progressive-tax:
+    up-to-100000: 5.0
+    up-to-500000: 10.0
+    up-to-1000000: 20.0
+    up-to-5000000: 30.0
+    above-5000000: 40.0
+  asset-tiers:
+    tier1: {minimum-assets: 0, order-limit: 100, additional-fee-percent: 0.0}
+    tier2: {minimum-assets: 1000001, order-limit: 75, additional-fee-percent: 1.0}
+    tier3: {minimum-assets: 5000001, order-limit: 50, additional-fee-percent: 2.0}
+    tier4: {minimum-assets: 10000001, order-limit: 25, additional-fee-percent: 4.0}
+  price-limit:
+    24h-percent: 25.0
+  circuit-breaker:
+    window-10m: {window: 10m, change-percent: 10.0, cooldown: 5m}
+    window-30m: {window: 30m, change-percent: 15.0, cooldown: 15m}
+    window-1h: {window: 1h, change-percent: 20.0, cooldown: 30m}
+  season-carryover:
+    up-to-500000: 100.0
+    up-to-2000000: 80.0
+    up-to-5000000: 60.0
+    above-5000000: 40.0
+
 limits:
   # 0 = 個数上限なし（残高・数値精度の安全チェックは維持）
   max-shares-per-stock: 0

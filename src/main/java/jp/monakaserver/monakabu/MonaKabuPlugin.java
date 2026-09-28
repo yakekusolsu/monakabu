@@ -64,11 +64,11 @@ public final class MonaKabuPlugin extends JavaPlugin {
             getServer().getPluginManager().registerEvents(gui,this);getServer().getPluginManager().registerEvents(new PlayerListener(this,database,playerRepository,payments),this);
             holograms=new HologramService(this,configs,database,hologramRepository,stocks,market,seasons,messages);getServer().getPluginManager().registerEvents(holograms,this);holograms.restore();
             webhook=new WebhookService(this,configs,stocks,market,seasons);getServer().getPluginManager().registerEvents(webhook,this);
-            realtime=new RealtimeService(this,configs,database,realtimeOutboxRepository,settlementRepository,stocks,marketEvents,seasons);getServer().getPluginManager().registerEvents(realtime,this);realtime.start();
+            realtime=new RealtimeService(this,configs,database,realtimeOutboxRepository,settlementRepository,stocks,marketEvents,seasons,economy);getServer().getPluginManager().registerEvents(realtime,this);realtime.start();
             monaPriceRealtime=new MonaPriceRealtimeBridge(this,configs,realtime);monaPriceRealtime.start();
             webTrading=new WebTradingService(this,configs,realtime,trading,economy,messages);webTrading.start();
             dailyReports=new DailyReportService(this,configs,database,dailyReportRepository,stocks,messages,webhook,realtime);dailyReports.start();
-            MonaKabuCommand command=new MonaKabuCommand(this,configs,stocks,market,marketEvents,seasons,trading,gui,holograms,webTrading,database,statsRepository,messages,this::reloadPlugin);
+            MonaKabuCommand command=new MonaKabuCommand(this,configs,stocks,market,marketEvents,seasons,trading,gui,holograms,webTrading,database,statsRepository,messages,economy,this::reloadPlugin);
             PluginCommand registered=Objects.requireNonNull(getCommand("monakabu"));registered.setExecutor(command);registered.setTabCompleter(command);
             if(getServer().getPluginManager().isPluginEnabled("PlaceholderAPI")){new PlaceholderService(this,stocks,seasons,trading,database,statsRepository,settlementRepository).register();getLogger().info("PlaceholderAPI integration enabled");}
             MonaKabu.register(new MonaKabuAPIImpl(stocks,trading,seasons));market.start();getLogger().info("MonaKabu "+getPluginMeta().getVersion()+" enabled. Season "+seasons.current().number()+" / "+seasons.current().status());

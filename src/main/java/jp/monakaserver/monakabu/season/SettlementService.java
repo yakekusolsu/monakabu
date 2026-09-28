@@ -12,6 +12,7 @@ import jp.monakaserver.monakabu.message.MessageService;
 import jp.monakaserver.monakabu.model.MarketStatus;
 import jp.monakaserver.monakabu.model.Season;
 import jp.monakaserver.monakabu.util.MainThread;
+import jp.monakaserver.monakabu.trading.InflationPolicy;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -51,7 +52,7 @@ public final class SettlementService {
     private CompletableFuture<Void> settleBatches(Season season){
         int batch=Math.max(1,configs.config().getInt("season.settlement-batch-size",200));
         SettlementRepository.SettlementOptions options=new SettlementRepository.SettlementOptions(
-                configs.config().getDouble("fees.sell.percent",2),configs.config().getBoolean("settlement.include-sell-fee",false),
+                configs.config().getDouble("trading-rules.fees.sell-percent",3),configs.config().getBoolean("settlement.include-sell-fee",false),
                 configs.config().getDouble("capital-gains-tax.percent",10),configs.config().getBoolean("settlement.include-capital-gains-tax",false));
         return database.transaction(c->settlements.settleBatch(c,season.id(),season.number(),batch,options)).thenCompose(result->{
             if(!result.payouts().isEmpty())MainThread.run(plugin,()->result.payouts().forEach(payout->Bukkit.getPluginManager().callEvent(new PortfolioSettlementEvent(payout.playerId(),season.id(),payout.amount()))));
@@ -62,7 +63,8 @@ public final class SettlementService {
 
     private CompletableFuture<Void> finalizeSeason(Season season){
         Instant finished=Instant.now();
-        return database.transaction(c->{settlements.buildResults(c,season.id());return null;}).thenCompose(ignored->rewards.apply(season)).thenCompose(ignored->database.transaction(c->{seasons.finishSettlement(c,season.id(),finished);return null;})).thenRun(()->{
+        InflationPolicy policy=new InflationPolicy(configs);
+        return database.transaction(c->{settlements.buildResults(c,season.id());return settlements.createCarryoverCharges(c,season.id(),policy);}).thenCompose(charged->{CompletableFuture<Void> chain=CompletableFuture.completedFuture(null);for(var uuid:charged)chain=chain.thenCompose(v->payments.payPending(uuid).thenApply(x->null));return chain;}).thenCompose(ignored->rewards.apply(season)).thenCompose(ignored->database.transaction(c->{seasons.finishSettlement(c,season.id(),finished);return null;})).thenRun(()->{
             Season closed=new Season(season.id(),season.number(),season.startsAt(),season.endsAt(),MarketStatus.CLOSED,finished);
             statusConsumer.accept(closed);events.endSeason(season.id());
             MainThread.run(plugin,()->{

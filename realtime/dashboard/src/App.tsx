@@ -263,7 +263,7 @@ function MonaPriceCountdown({ state }: { state: MonaPriceState }) {
 function StockCard({ index, stock, currency, selected, onClick }: { index: number; stock: StockState; currency: string; selected: boolean; onClick: () => void }) {
   return <button className={`stock-card ${selected ? "selected" : ""}`} onClick={onClick}>
     <p className="post-meta"><span>{index}</span> 名前：<b>{plain(stock.displayName)}</b> 投稿日：{dateTime(stock.updatedAt)} ID:{stock.symbol}</p>
-    <div className="post-body"><div className="stock-title"><span className="ticker">銘柄コード：{stock.symbol}</span>{stock.halted && <span className="halted">取引停止中</span>}</div>
+    <div className="post-body"><div className="stock-title"><span className="ticker">銘柄コード：{stock.symbol}</span>{stock.halted && <span className="halted">⚠ 取引一時停止中</span>}</div>
       <div className="card-price"><strong>{money(stock.price)}</strong><span>{currency}</span></div>
       <Change value={stock.changePercent} /><span className="stock-comment">　{stock.changePercent >= 0 ? "上がってるぞ(ﾟ∀ﾟ)" : "下がってる…(´・ω・｀)"}</span>
       <div className="stock-quick"><span>高値 <b>{money(stock.dailyHigh)}</b></span><span>安値 <b>{money(stock.dailyLow)}</b></span><span>気配 <b>{trendLabel(stock.trend)}</b></span></div>
@@ -363,8 +363,8 @@ function RankingBoard({ ranking, currency, season }: { ranking: MarketRanking | 
   return <section className="ranking-board" id="ranking">
     <div className="thread-title">【Season {number ?? "-"}】総損益ランキング</div>
     <p className="ranking-note">{ranking?.finalized ? "シーズン最終順位です。" : "確定損益と現在保有株の含み損益を合計した暫定順位です。"} 株価更新に合わせて自動更新されます。</p>
-    {ranking?.entries.length ? <div className="ranking-scroll"><table className="ranking-table"><thead><tr><th>順位</th><th>プレイヤー</th><th>総損益</th><th>取引回数</th></tr></thead><tbody>
-      {ranking.entries.map((entry) => <tr key={`${entry.rank}-${entry.playerName}`} className={entry.rank <= 3 ? `ranking-top ranking-${entry.rank}` : ""}><td data-label="順位"><span className="ranking-medal">{entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `${entry.rank}位`}</span></td><th scope="row">{entry.playerName}</th><td data-label="総損益"><strong className={entry.profit >= 0 ? "positive" : "negative"}>{entry.profit >= 0 ? "+" : ""}{money(entry.profit)} {currency}</strong></td><td data-label="取引回数">{entry.trades.toLocaleString("ja-JP")}回</td></tr>)}
+    {ranking?.entries.length ? <div className="ranking-scroll"><table className="ranking-table"><thead><tr><th>順位</th><th>プレイヤー</th><th>総資産</th><th>現金</th><th>株式評価額</th><th>シーズン利益</th><th>実現利益</th><th>総税額</th><th>ROI</th><th>取引回数</th></tr></thead><tbody>
+      {ranking.entries.map((entry) => <tr key={`${entry.rank}-${entry.playerName}`} className={entry.rank <= 3 ? `ranking-top ranking-${entry.rank}` : ""}><td data-label="順位"><span className="ranking-medal">{entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : `${entry.rank}位`}</span></td><th scope="row">{entry.playerName}</th><td data-label="総資産">{money(entry.totalAssets)} {currency}</td><td data-label="現金">{money(entry.cash)}</td><td data-label="株式評価額">{money(entry.stockValue)}</td><td data-label="シーズン利益"><strong className={entry.seasonProfit >= 0 ? "positive" : "negative"}>{entry.seasonProfit >= 0 ? "+" : ""}{money(entry.seasonProfit)}</strong></td><td data-label="実現利益">{money(entry.realizedProfit)}</td><td data-label="総税額">{money(entry.totalTax)}</td><td data-label="ROI">{entry.roi.toFixed(2)}%</td><td data-label="取引回数">{entry.trades.toLocaleString("ja-JP")}回</td></tr>)}
     </tbody></table></div> : <div className="ranking-empty">{ranking ? "まだランキング対象の取引がありません。" : "MonaKabuからランキングデータが届くまでお待ちください。"}</div>}
     {ranking && <p className="ranking-updated">集計：{dateTime(ranking.updatedAt)} / {ranking.entries.length}名を表示</p>}
   </section>;
@@ -507,4 +507,4 @@ function pad(value: number) { return value.toString().padStart(2, "0"); }
 function trendLabel(value: StockState["trend"]) { return value === "BULL" ? "強気" : value === "BEAR" ? "弱気" : "通常"; }
 function statusLabel(value?: SeasonState["status"]) { return ({ OPENING: "開場準備", CLOSING: "終了処理", SETTLEMENT: "決済中", CLOSED: "閉場中" } as Record<string, string>)[value ?? ""] ?? "待機中"; }
 function orderStatus(status: string, reason?: string) { return status === "COMPLETED" ? "完了" : status === "FAILED" ? `失敗${reason ? `: ${reasonLabel(reason)}` : ""}` : status === "CANCELLED" ? "取消" : status === "CLAIMED" ? "処理中" : "受付済み"; }
-function reasonLabel(reason: string) { return ({ NOT_ENOUGH_MONEY: "残高不足", NOT_ENOUGH_SHARES: "保有株不足", MARKET_CLOSED: "市場閉場", STOCK_HALTED: "取引停止", LIMIT_SHARES: "保有上限", LIMIT_INVESTMENT: "投資上限", BUSY: "別の注文を処理中", WEB_ORDER_LIMIT: "注文上限超過", REVIEW_REQUIRED: "管理者確認中" } as Record<string, string>)[reason] ?? reason; }
+function reasonLabel(reason: string) { return ({ NOT_ENOUGH_MONEY: "残高不足", NOT_ENOUGH_SHARES: "保有株不足", MARKET_CLOSED: "市場閉場", STOCK_HALTED: "取引停止", LIMIT_SHARES: "保有上限", ORDER_LIMIT: "資産Tierの注文上限", MINIMUM_HOLD: "購入から5分未満", LIMIT_INVESTMENT: "投資上限", BUSY: "別の注文を処理中", WEB_ORDER_LIMIT: "注文上限超過", REVIEW_REQUIRED: "管理者確認中" } as Record<string, string>)[reason] ?? reason; }

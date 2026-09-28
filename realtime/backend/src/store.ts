@@ -490,7 +490,8 @@ function normalizeRanking(value: unknown): MarketRanking | null {
     if (!Number.isSafeInteger(rank) || rank < 1 || typeof entry.playerName !== "string"
       || entry.playerName.length < 1 || entry.playerName.length > 64 || !Number.isFinite(profit)
       || !Number.isSafeInteger(trades) || trades < 0) return [];
-    return [{ rank, playerName: entry.playerName, profit, trades }];
+    const metric=(key:string)=>Number.isFinite(Number(entry[key]))?Number(entry[key]):0;
+    return [{ rank, playerName: entry.playerName, profit, trades, cash:metric("cash"),stockValue:metric("stockValue"),totalAssets:metric("totalAssets"),seasonProfit:metric("seasonProfit"),realizedProfit:metric("realizedProfit"),totalTax:metric("totalTax"),roi:metric("roi") }];
   }).sort((left, right) => left.rank - right.rank);
   const seasonId = candidate.seasonId == null ? null : Number(candidate.seasonId);
   const seasonNumber = candidate.seasonNumber == null ? null : Number(candidate.seasonNumber);

@@ -29,8 +29,13 @@ public final class PaymentService {
     }
 
     public CompletableFuture<BigDecimal> payPending(UUID uuid) {
-        return database.transaction(connection -> repository.claimForPlayer(connection, uuid, 100))
-                .thenCompose(this::payClaims);
+        return collectCharges(uuid,100).thenCompose(ignored->database.transaction(connection -> repository.claimForPlayer(connection, uuid, 100)))
+                .thenCompose(this::payClaims).thenCompose(total->collectCharges(uuid,100).thenApply(ignored->total));
+    }
+
+    private CompletableFuture<BigDecimal> collectCharges(UUID uuid,int remaining){
+        if(remaining<=0)return CompletableFuture.completedFuture(Money.ZERO);
+        return database.read(c->repository.nextCharge(c,uuid)).thenCompose(charge->{if(charge==null)return CompletableFuture.completedFuture(Money.ZERO);return MainThread.call(plugin,()->{OfflinePlayer player=Bukkit.getOfflinePlayer(uuid);BigDecimal available=Money.of(Math.max(0,economy.balance(player)));BigDecimal take=available.min(charge.remaining());if(take.signum()<=0)return Money.ZERO;EconomyResponse response=economy.withdraw(player,take);return response.transactionSuccess()?take:Money.ZERO;}).thenCompose(taken->{if(taken.signum()<=0)return CompletableFuture.completedFuture(Money.ZERO);return database.transaction(c->{repository.applyCharge(c,charge.id(),taken);return taken;}).thenCompose(first->collectCharges(uuid,remaining-1).thenApply(next->first.add(next)));});});
     }
 
     private CompletableFuture<BigDecimal> payClaims(List<PaymentRepository.Payment> payments) {
