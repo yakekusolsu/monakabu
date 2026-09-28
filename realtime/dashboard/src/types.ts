@@ -41,8 +41,8 @@ export interface MonaPriceState {
 
 export interface MarketRankingEntry {
   rank: number; playerName: string; profit: number; trades: number;
-  cash: number; stockValue: number; totalAssets: number; seasonProfit: number;
-  realizedProfit: number; totalTax: number; roi: number;
+  cash?: number; stockValue?: number; totalAssets?: number; seasonProfit?: number;
+  realizedProfit?: number; totalTax?: number; roi?: number;
 }
 
 export interface MarketRanking {
